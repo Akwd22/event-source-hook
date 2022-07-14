@@ -1,0 +1,30 @@
+{
+  "name": "event-source-hook",
+  "version": "1.0.0",
+  "description": "Easily intercept, modify, and simulate EventSource server-sent message events.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Akwd22/event-source-hook.git"
+  },
+  "keywords": [
+    "eventsource",
+    "hook",
+    "intercept",
+    "modify",
+    "simulate",
+    "server",
+    "sent",
+    "message"
+  ],
+  "author": "Akwd22 - Eddy D. (https://github.com/Akwd22)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Akwd22/event-source-hook/issues"
+  },
+  "homepage": "https://github.com/Akwd22/event-source-hook#readme"
+}
