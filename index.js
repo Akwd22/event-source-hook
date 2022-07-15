@@ -49,8 +49,8 @@ function FakeEventSource(url, eventSourceInitDict) {
           }
 
           // If event is null, then we block the message.
-          if (event !== null) listener(event);
-          
+          if (event !== null) listener(event); // TODO : can be an object with handleEvent method.
+
         },
         optionsOrUseCapture
       );
