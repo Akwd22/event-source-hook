@@ -206,6 +206,29 @@ describe("`hookEvent` method", () => {
     // @ts-ignore
     expect(() => clientEs.addEventListener("message", {})).not.toThrowError(TypeError);
   });
+
+  it("(callback) lets the event from being received if not blocked", (done) => {
+    EventSourceHook.hookEvent(({}, event, {}, result) => result(event));
+    clientEs.addEventListener("message", () => done());
+    server.sendEvent();
+  });
+
+  it("(callback) blocks the event from being received if asked", (done) => {
+    let called = false;
+
+    EventSourceHook.hookEvent(({}, {}, {}, result) => result(null));
+
+    clientEs.addEventListener("message", () => {
+      called = true;
+      done("Event should be blocked and not received");
+    });
+
+    setTimeout(() => {
+      if (!called) done();
+    }, 100);
+
+    server.sendEvent();
+  });
 });
 
 /* --------------------------------- Methods -------------------------------- */

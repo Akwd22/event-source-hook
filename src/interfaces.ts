@@ -30,7 +30,15 @@ export interface HookedEventSource extends EventSource {
   genuineRemoveEventListener: EventTarget["removeEventListener"];
 }
 
-type HookEventListener = (type: string, event: MutableMessageEvent, eventSource: HookedEventSource) => MutableMessageEvent | null;
+export type HookEventFunctionSync = (type: string, event: MutableMessageEvent, eventSource: HookedEventSource) => MutableMessageEvent | null;
+export type HookEventFunctionAsync = (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void) => void;
+
+export type HookEventFunction = (
+  type: string,
+  event: MutableMessageEvent,
+  eventSource: HookedEventSource,
+  result: (event: MutableMessageEvent | null) => void
+) => MutableMessageEvent | null | void;
 
 export interface EventSourceHook {
   /**
@@ -54,9 +62,9 @@ export interface EventSourceHook {
    */
   // onmessage: ((event: MutableMessageEvent, url: string, eventSource: HookedEventSource) => MutableMessageEvent | null) | null;
 
-  eventListener: HookEventListener | null;
+  eventListener: HookEventFunction | null;
 
-  hookEvent(listener: HookEventListener | false): void;
+  hookEvent(listener: HookEventFunction | false): void;
 
   /**
    * Enable server-sent events hook (by swapping the native `EventSource` constructor).

@@ -1,4 +1,4 @@
-import { ExtendedMessageEvent, MutableMessageEvent, HookedEventSource, EventSourceHook } from "./interfaces";
+import { ExtendedMessageEvent, MutableMessageEvent, HookedEventSource, EventSourceHook, HookEventFunctionSync, HookEventFunctionAsync } from "./interfaces";
 
 const GenuineEventSource = EventSource;
 
@@ -77,13 +77,21 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
         return;
       }
 
+      const callback = (mutableEvent: MutableMessageEvent | null) => {
+        // If the event is null, then we block the message.
+        if (mutableEvent !== null) listener(mutableEvent);
+      };
+
       // If a hook is active, get returned event from the hook user function.
       let mutableEvent: MutableMessageEvent | null;
       mutableEvent = ToMutableMessageEvent(event as ExtendedMessageEvent);
-      mutableEvent = EventSourceHook.eventListener(mutableEvent.type, mutableEvent, eventSource);
 
-      // If the event is null, then we block the message.
-      if (mutableEvent !== null) listener(mutableEvent);
+      if (EventSourceHook.eventListener.length < 4) {
+        mutableEvent = (EventSourceHook.eventListener as HookEventFunctionSync)(mutableEvent.type, mutableEvent, eventSource);
+        callback(mutableEvent);
+      } else {
+        (EventSourceHook.eventListener as HookEventFunctionAsync)(mutableEvent.type, mutableEvent, eventSource, callback);
+      }
     };
 
     eventSource.genuineAddEventListener(type, proxy, options);
