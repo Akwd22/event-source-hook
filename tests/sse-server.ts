@@ -51,15 +51,15 @@ export function stopServer(): Promise<void> {
  * @param id Event identifier.
  * @throws {Error} If the event stream is not opened.
  */
-export function sendEvent(type: string, data: any, id: string): void {
+export function sendEvent(type?: string, data: any = {}, id?: string): void {
   if (!esResponse) {
     throw new Error("Event stream is not opened");
   }
 
-  if (id) esResponse.write(`id: ${id}\n`);
   if (type) esResponse.write(`event: ${type}\n`);
-  if (data) esResponse.write(`data: ${JSON.stringify(data)}`);
-  esResponse.write("\n\n");
+  if (data) esResponse.write(`data: ${JSON.stringify(data)}\n`);
+  if (id) esResponse.write(`id: ${id}\n`);
+  esResponse.write("\n");
 }
 
 export default {

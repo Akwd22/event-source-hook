@@ -25,8 +25,12 @@ export interface MutableMessageEvent extends ExtendedMessageEvent {
 }
 
 export interface HookedEventSource extends EventSource {
+  mapListenerProxy: WeakMap<EventListenerOrEventListenerObject, { [eventType: string]: EventListener }>;
   genuineAddEventListener: EventTarget["addEventListener"];
+  genuineRemoveEventListener: EventTarget["removeEventListener"];
 }
+
+type HookEventListener = (type: string, event: MutableMessageEvent, eventSource: HookedEventSource) => MutableMessageEvent | null;
 
 export interface EventSourceHook {
   /**
@@ -48,7 +52,11 @@ export interface EventSourceHook {
    * @param eventSource `EventSource` object bound to the connection.
    * @returns A mutable `MessageEvent` object, or `null` to block.
    */
-  onmessage: ((event: MutableMessageEvent, url: string, eventSource: HookedEventSource) => MutableMessageEvent | null) | null;
+  // onmessage: ((event: MutableMessageEvent, url: string, eventSource: HookedEventSource) => MutableMessageEvent | null) | null;
+
+  eventListener: HookEventListener | null;
+
+  hookEvent(listener: HookEventListener | false): void;
 
   /**
    * Enable server-sent events hook (by swapping the native `EventSource` constructor).

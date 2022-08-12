@@ -40,29 +40,82 @@ function ToMutableMessageEvent(messageEvent: ExtendedMessageEvent): MutableMessa
 function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceInit): HookedEventSource {
   const eventSource = new GenuineEventSource(url, eventSourceInitDict) as HookedEventSource;
 
+  /* --------------------------- removeEventListener -------------------------- */
+
+  eventSource.mapListenerProxy = new WeakMap();
+  eventSource.genuineRemoveEventListener = eventSource.removeEventListener;
+
+  // @ts-ignore
+  eventSource.removeEventListener = function (type, listener, options) {
+    const proxies = this.mapListenerProxy.get(listener);
+    const proxy = proxies?.[type];
+
+    if (proxy) {
+      this.genuineRemoveEventListener(type, proxy, options);
+      delete proxies[type];
+    }
+  };
+
+  /* ---------------------------- addEventListener ---------------------------- */
+
   eventSource.genuineAddEventListener = eventSource.addEventListener;
 
   // @ts-ignore
   eventSource.addEventListener = (type, listener, options) => {
-    eventSource.genuineAddEventListener(
-      type,
-      (event) => {
-        let mutableEvent: MutableMessageEvent | null = null;
+    if (!["function", "object"].includes(typeof listener)) {
+      throw new TypeError("Failed to execute 'addEventListener' on 'EventTarget': parameter 2 is not of type 'Object'.");
+    }
 
-        // If a hook is active, get returned event from the hook user function.
-        if (EventSourceHook.onmessage) {
-          mutableEvent = ToMutableMessageEvent(event as ExtendedMessageEvent);
-          mutableEvent = EventSourceHook.onmessage(mutableEvent, eventSource.url, eventSource);
-        }
+    if (typeof listener === "object") {
+      listener = listener.handleEvent;
+      if (typeof listener !== "function") return;
+    }
 
-        // If event is null, then we block the message.
-        if (mutableEvent !== null) listener(mutableEvent); // TODO : can be an object with handleEvent method.
-      },
-      options
-    );
+    const proxy = (event: Event) => {
+      if (!EventSourceHook.eventListener) {
+        listener(event);
+        return;
+      }
 
-    eventSource.genuineAddEventListener(type, listener, options);
+      // If a hook is active, get returned event from the hook user function.
+      let mutableEvent: MutableMessageEvent | null;
+      mutableEvent = ToMutableMessageEvent(event as ExtendedMessageEvent);
+      mutableEvent = EventSourceHook.eventListener(mutableEvent.type, mutableEvent, eventSource);
+
+      // If the event is null, then we block the message.
+      if (mutableEvent !== null) listener(mutableEvent);
+    };
+
+    eventSource.genuineAddEventListener(type, proxy, options);
+
+    // Store (listener -> proxy) to map.
+    const proxies = eventSource.mapListenerProxy.get(listener) ?? {};
+    proxies[type] = proxy;
+    eventSource.mapListenerProxy.set(listener, proxies);
   };
+
+  /* -------------------------------- onmessage ------------------------------- */
+
+  Object.defineProperty(eventSource, "onmessage", {
+    get: function () {
+      return this._onmessage;
+    },
+    set: function (listener) {
+      if (typeof listener === "function") {
+        eventSource.addEventListener("message", listener);
+      } else {
+        listener = null;
+      }
+
+      eventSource.removeEventListener("message", eventSource.onmessage!);
+
+      this._onmessage = listener;
+    },
+  });
+
+  eventSource.onmessage = null;
+
+  /* ------------------------------- connection ------------------------------- */
 
   // Call the listener after a connection is open.
   if (EventSourceHook.onconnect) EventSourceHook.onconnect(eventSource);
@@ -72,7 +125,11 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
 const EventSourceHook: EventSourceHook = {
   onconnect: null,
-  onmessage: null,
+  eventListener: null,
+
+  hookEvent(listener) {
+    this.eventListener = typeof listener === "function" ? listener : null;
+  },
 
   enable() {
     // @ts-ignore
@@ -85,7 +142,7 @@ const EventSourceHook: EventSourceHook = {
   },
 
   simulate(eventSource, type, options = {}) {
-    options.origin = options.origin || new URL(eventSource.url).origin;
+    options.origin = options.origin ?? new URL(eventSource.url).origin;
     options.data = JSON.stringify(options.data);
 
     const event = new MessageEvent(type, options) as ExtendedMessageEvent;
