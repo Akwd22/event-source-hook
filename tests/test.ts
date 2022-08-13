@@ -1,8 +1,8 @@
 import server from "./sse-server";
 import client from "./sse-client";
 
-import EventSourceHook from "../src/index";
-import { ExtendedMessageEvent, HookedEventSource } from "../src/interfaces";
+import ESHook from "../src/index";
+import { ExtendedMessageEvent, HookedEventSource, HookEventFunctionAsync, HookEventFunctionSync } from "../src/interfaces";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Globals                                  */
@@ -18,8 +18,11 @@ let hookedEs: HookedEventSource;
 /* -------------------------------------------------------------------------- */
 
 beforeEach(async () => {
-  EventSourceHook.enable();
-  EventSourceHook.onconnect = (es) => (hookedEs = es);
+  ESHook.enable();
+  ESHook.openHook = (es) => {
+    ESHook.openHook = null;
+    hookedEs = es;
+  };
 
   await server.startServer(3000, "/es");
   clientEs = await client.startClient("http://127.0.0.1:3000/es");
@@ -29,284 +32,313 @@ afterEach(async () => {
   await client.stopClient();
   await server.stopServer();
 
-  EventSourceHook.onconnect = null;
-  EventSourceHook.hookEvent(false);
+  ESHook.openHook = null;
+  ESHook.eventHook = null;
 });
 
 /* -------------------------------------------------------------------------- */
 /*                                 Unit Tests                                 */
 /* -------------------------------------------------------------------------- */
 
-/* --------------------------------- Events --------------------------------- */
+async function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
-describe("`onconnect` event", () => {
-  it("intercepts the opened connection", () => {
+/* ----------------------------- Connect Hooking ---------------------------- */
+
+describe("# Connect Hook", () => {
+  it("intercepts any opened connection", () => {
     expect(hookedEs).toBe(clientEs);
   });
 });
 
-describe("`hookEvent` method", () => {
-  it("intercepts the default event type (with `addEventListener`)", (done) => {
-    EventSourceHook.hookEvent(() => done());
-    clientEs.addEventListener("message", () => {});
-    server.sendEvent();
-  });
+/* ------------------------------ Event Hooking ----------------------------- */
 
-  it("intercepts the default event type (with `onconnect`)", (done) => {
-    EventSourceHook.hookEvent(() => done());
-    clientEs.onmessage = () => {};
-    server.sendEvent();
-  });
-
-  it("intercepts any event type", (done) => {
-    EventSourceHook.hookEvent(() => done());
-    clientEs.addEventListener("test", () => {});
-    server.sendEvent("test");
-  });
-
-  it("also works with listener object passed to `addEventListener`", (done) => {
-    let called = false;
-
-    clientEs.addEventListener("message", {
-      handleEvent: () => {
-        called = true;
-        done();
-      },
+describe("# Event Hook", () => {
+  describe("## `EventSource.addEventListener()` impl.", () => {
+    it("takes a listener function successfully", (done) => {
+      clientEs.addEventListener("message", () => done());
+      server.sendEvent();
     });
 
-    setTimeout(() => {
-      if (!called) done("Object listener should be called");
-    }, 100);
-
-    server.sendEvent();
-  });
-
-  it("lets the event from being received if not blocked", (done) => {
-    let called = false;
-
-    EventSourceHook.hookEvent((type, event, eventSource) => event);
-
-    clientEs.addEventListener("message", () => {
-      called = true;
-      done();
+    it("takes a listener object successfully", (done) => {
+      clientEs.addEventListener("message", { handleEvent: () => done() });
+      server.sendEvent();
     });
 
-    setTimeout(() => {
-      if (!called) done("Event should not be blocked");
-    }, 100);
+    it("throws if a function or object is not passed as a listener", () => {
+      // @ts-ignore
+      expect(() => clientEs.addEventListener("message1", 1)).toThrowError(TypeError);
+      // @ts-ignore
+      expect(() => clientEs.addEventListener("message2", null)).toThrowError(TypeError);
+      // @ts-ignore
+      expect(() => clientEs.addEventListener("message3", true)).toThrowError(TypeError);
+      // @ts-ignore
+      expect(() => clientEs.addEventListener("message4", "test")).toThrowError(TypeError);
 
-    server.sendEvent();
+      // @ts-ignore
+      expect(() => clientEs.addEventListener("message5", () => {})).not.toThrowError(TypeError);
+      // @ts-ignore
+      expect(() => clientEs.addEventListener("message6", {})).not.toThrowError(TypeError);
+    });
   });
 
-  it("blocks the event from being received if asked", (done) => {
-    let called = false;
+  describe("## `EventSource.removeEventListener()` impl.", () => {
+    it("removes passed listener when called", async () => {
+      const func = jest.fn();
 
-    EventSourceHook.hookEvent(() => null);
+      clientEs.addEventListener("message", func);
+      clientEs.removeEventListener("message", func);
+      server.sendEvent();
 
-    clientEs.addEventListener("message", () => {
-      called = true;
-      done("Event should be blocked and not received");
+      await wait(50);
+      expect(func).not.toHaveBeenCalled();
     });
 
-    setTimeout(() => {
-      if (!called) done();
-    }, 100);
+    it("removes listener when `EventSource.onmessage` nulled", async () => {
+      const func = jest.fn();
 
-    server.sendEvent();
+      clientEs.onmessage = func;
+      clientEs.onmessage = null;
+      server.sendEvent();
+
+      await wait(50);
+      expect(func).not.toHaveBeenCalled();
+    });
   });
 
-  it("calls the hook function with proper args", (done) => {
-    EventSourceHook.hookEvent((type, event, eventSource) => {
-      try {
-        expect(type).toBe("test");
-        expect(event.data).toBe(JSON.stringify("data"));
-        expect(event.lastEventId).toBe("id");
-        expect(eventSource).toBe(hookedEs);
-        done();
-      } catch (err) {
-        done(err);
-      }
-
-      return null;
+  describe("## Hook behaviour", () => {
+    it("intercepts any event type - with `EventSource.addEventListener()`", (done) => {
+      const type = String(Math.random());
+      ESHook.eventHook = () => done();
+      clientEs.addEventListener(type, () => {});
+      server.sendEvent(type);
     });
 
-    clientEs.addEventListener("test", () => {});
-
-    server.sendEvent("test", "data", "id");
-  });
-
-  it("unattaches the hook function", (done) => {
-    let called = false;
-
-    EventSourceHook.hookEvent(() => {
-      called = true;
-      done("Hook function should not be called");
-      return null;
+    it("intercepts `message` event type - with `EventSource.onmessage`", (done) => {
+      ESHook.eventHook = () => done();
+      clientEs.onmessage = () => {};
+      server.sendEvent("message");
     });
 
-    EventSourceHook.hookEvent(false);
-
-    clientEs.addEventListener("message", () => {
-      if (!called) done();
+    it("lets the event from being received if not blocked", (done) => {
+      ESHook.eventHook = ({}, event, {}) => event;
+      clientEs.addEventListener("message", () => done());
+      server.sendEvent();
     });
 
-    server.sendEvent();
-  });
+    it("blocks the event from being received if blocked", async () => {
+      const func = jest.fn();
 
-  it("removes original listener when `removeEventListener` called", (done) => {
-    let called = false;
+      ESHook.eventHook = () => null;
+      clientEs.addEventListener("message", func);
+      server.sendEvent();
 
-    const func = () => {
-      called = true;
-      done("Listener should be removed thus not called");
-    };
-
-    clientEs.addEventListener("message", func);
-    clientEs.removeEventListener("message", func);
-
-    setTimeout(() => {
-      if (!called) done();
-    }, 100);
-
-    server.sendEvent();
-  });
-
-  it("removes original listener when `onmessage` nulled", (done) => {
-    let called = false;
-
-    const func = () => {
-      called = true;
-      done("Listener should be removed thus not called");
-    };
-
-    clientEs.onmessage = func;
-    clientEs.onmessage = null;
-
-    setTimeout(() => {
-      if (!called) done();
-    }, 100);
-
-    server.sendEvent();
-  });
-
-  it("throws an exception if a function or object is not passed to 2nd param `addEventListener`", () => {
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", 1)).toThrowError(TypeError);
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", undefined)).toThrowError(TypeError);
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", null)).toThrowError(TypeError);
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", "test")).toThrowError(TypeError);
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", true)).toThrowError(TypeError);
-
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", () => {})).not.toThrowError(TypeError);
-    // @ts-ignore
-    expect(() => clientEs.addEventListener("message", {})).not.toThrowError(TypeError);
-  });
-
-  it("(callback) lets the event from being received if not blocked", (done) => {
-    EventSourceHook.hookEvent(({}, event, {}, result) => result(event));
-    clientEs.addEventListener("message", () => done());
-    server.sendEvent();
-  });
-
-  it("(callback) blocks the event from being received if asked", (done) => {
-    let called = false;
-
-    EventSourceHook.hookEvent(({}, {}, {}, result) => result(null));
-
-    clientEs.addEventListener("message", () => {
-      called = true;
-      done("Event should be blocked and not received");
+      await wait(50);
+      expect(func).not.toHaveBeenCalled();
     });
 
-    setTimeout(() => {
-      if (!called) done();
-    }, 100);
+    it("calls the hook function with proper args", (done) => {
+      expect.assertions(4);
 
-    server.sendEvent();
+      ESHook.eventHook = (type, event, eventSource) => {
+        try {
+          expect(type).toBe("test");
+          expect(event.data).toBe(JSON.stringify("data"));
+          expect(event.lastEventId).toBe("id");
+          expect(eventSource).toBe(hookedEs);
+          done();
+        } catch (err) {
+          done(err);
+        }
+
+        return null;
+      };
+
+      clientEs.addEventListener("test", () => {});
+
+      server.sendEvent("test", "data", "id");
+    });
+
+    it("unattaches the hook function", (done) => {
+      const func = jest.fn();
+
+      ESHook.eventHook = func;
+      ESHook.eventHook = null;
+
+      clientEs.addEventListener("message", () => {
+        try {
+          expect(func).not.toHaveBeenCalled();
+          done();
+        } catch (err) {
+          done(err);
+        }
+      });
+
+      server.sendEvent();
+    });
+
+    it("(async hook) lets the event from being received if not blocked", (done) => {
+      ESHook.eventHook = ({}, event, {}, result) => result(event);
+      clientEs.addEventListener("message", () => done());
+      server.sendEvent();
+    });
+
+    it("(async hook) blocks the event from being received if blocked", async () => {
+      const func = jest.fn();
+
+      ESHook.eventHook = ({}, {}, {}, result) => result(null);
+      clientEs.addEventListener("message", func);
+      server.sendEvent();
+
+      await wait(50);
+      expect(func).not.toHaveBeenCalled();
+    });
   });
 });
 
 /* --------------------------------- Methods -------------------------------- */
 
-describe("`simulate` method", () => {
-  it("receives the simulated message with default options", (done) => {
-    clientEs.onmessage = (e) => {
-      try {
-        expect(e.type).toBe("message");
-        expect(e.data).toBeNull();
-        expect(e.origin).toBe(new URL(clientEs.url).origin);
-        expect(e.lastEventId).toBe("");
-        done();
-      } catch (err) {
-        done(err);
-      }
-    };
-
-    EventSourceHook.simulate(hookedEs, "message");
+describe("# `ESHook` Class Methods", () => {
+  describe("## `enable()`", () => {
+    it("swaps native `EventSource` constructor", () => {
+      ESHook.enable();
+      expect(EventSource.name).toBe("HookedEventSource");
+    });
   });
 
-  it("receives the simulated message with proper options", (done) => {
-    clientEs.addEventListener("test", (e) => {
-      try {
-        expect(e.type).toBe("test");
-        expect(e.data).toBe(JSON.stringify("test"));
-        expect(e.origin).toBe("http://test");
-        expect(e.lastEventId).toBe("1");
-        done();
-      } catch (err) {
-        done(err);
-      }
+  describe("## `disable()`", () => {
+    it("swaps back native `EventSource` constructor", () => {
+      ESHook.disable();
+      expect(EventSource.name).toBe("EventSource");
+    });
+  });
+
+  describe("## `simulate()`", () => {
+    it("receives the simulated event with default options", (done) => {
+      expect.assertions(4);
+
+      clientEs.onmessage = (e) => {
+        try {
+          expect(e.type).toBe("message");
+          expect(e.data).toBeNull();
+          expect(e.origin).toBe(new URL(clientEs.url).origin);
+          expect(e.lastEventId).toBe("");
+          done();
+        } catch (err) {
+          done(err);
+        }
+      };
+
+      ESHook.simulate(hookedEs, "message");
     });
 
-    EventSourceHook.simulate(hookedEs, "test", { lastEventId: "1", data: "test", origin: "http://test" });
-  });
+    it("receives the simulated event with proper options", (done) => {
+      expect.assertions(4);
 
-  it("adds a property `simulated` to `true`", (done) => {
-    clientEs.onmessage = (e: ExtendedMessageEvent) => {
-      try {
-        expect(e.simulated).toBe(true);
-        done();
-      } catch (err) {
-        done(err);
-      }
-    };
+      clientEs.addEventListener("test", (e) => {
+        try {
+          expect(e.type).toBe("test");
+          expect(e.data).toBe(JSON.stringify("test"));
+          expect(e.origin).toBe("http://test");
+          expect(e.lastEventId).toBe("1");
+          done();
+        } catch (err) {
+          done(err);
+        }
+      });
 
-    EventSourceHook.simulate(hookedEs, "message");
-  });
+      ESHook.simulate(hookedEs, "test", { lastEventId: "1", data: "test", origin: "http://test" });
+    });
 
-  it("serializes message data to JSON", (done) => {
-    clientEs.onmessage = (e) => {
-      try {
-        expect(e.data).toBe(JSON.stringify(["array"]));
-        done();
-      } catch (err) {
-        done(err);
-      }
-    };
+    it("adds a property `simulated` to `true` to event object", (done) => {
+      expect.assertions(1);
 
-    EventSourceHook.simulate(hookedEs, "message", { data: ["array"] });
+      clientEs.onmessage = (e: ExtendedMessageEvent) => {
+        try {
+          expect(e.simulated).toBe(true);
+          done();
+        } catch (err) {
+          done(err);
+        }
+      };
+
+      ESHook.simulate(hookedEs, "message");
+    });
+
+    it("serializes event data to JSON", (done) => {
+      expect.assertions(1);
+
+      clientEs.onmessage = (e) => {
+        try {
+          expect(e.data).toBe(JSON.stringify(["array"]));
+          done();
+        } catch (err) {
+          done(err);
+        }
+      };
+
+      ESHook.simulate(hookedEs, "message", { data: ["array"] });
+    });
   });
 });
 
-describe("`enable` method", () => {
-  it("swaps native `EventSource` constructor", () => {
-    EventSourceHook.enable();
-    expect(EventSource.name).toBe("HookedEventSource");
+/* ------------------------------- Properties ------------------------------- */
+
+describe("# `ESHook` Class Properties", () => {
+  it("`openHook`", () => {
+    const func = () => {};
+
+    expect(ESHook.openHook).toBeNull();
+
+    ESHook.openHook = func;
+    expect(ESHook.openHook).toBe(func);
+
+    ESHook.openHook = null;
+    expect(ESHook.openHook).toBeNull();
   });
 
-  it.todo("resumes all active hooks");
-});
+  it("`eventHook`", () => {
+    const func = () => {};
 
-describe("`disable` method", () => {
-  it("swaps back native `EventSource` constructor", () => {
-    EventSourceHook.disable();
-    expect(EventSource.name).toBe("EventSource");
+    expect(ESHook.eventHook).toBeNull();
+
+    ESHook.eventHook = func;
+    expect(ESHook.eventHook).toBe(func);
+
+    ESHook.eventHook = null;
+    expect(ESHook.eventHook).toBeNull();
   });
 
-  it.todo("pauses all active hooks");
+  it("`isEventHookAsync`", () => {
+    const funcSync: HookEventFunctionSync = ({}, {}, {}) => null;
+    const funcAsync: HookEventFunctionAsync = ({}, {}, {}, result) => {};
+
+    ESHook.eventHook = null;
+    expect(ESHook.isEventHookAsync).toBe(false);
+
+    ESHook.eventHook = funcSync;
+    expect(ESHook.isEventHookAsync).toBe(false);
+
+    ESHook.eventHook = funcAsync;
+    expect(ESHook.isEventHookAsync).toBe(true);
+  });
+
+  it("`enabled`", () => {
+    // Test by calling enable/disable functions.
+    ESHook.enable();
+    const fake = EventSource;
+    expect(ESHook.enabled).toBe(true);
+
+    ESHook.disable();
+    const genuine = EventSource;
+    expect(ESHook.enabled).toBe(false);
+
+    // Test without calling enable/disable functions.
+    EventSource = fake;
+    expect(ESHook.enabled).toBe(true);
+
+    EventSource = genuine;
+    expect(ESHook.enabled).toBe(false);
+  });
 });

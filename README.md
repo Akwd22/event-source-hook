@@ -109,7 +109,7 @@ EventSourceHook.onmessage = (event, url, eventSource) => {
     event.data = JSON.stringify(obj.foo);
     return event;
   }
-  
+
   // Detect simulated message events.
   if (event.simulated) {
     console.log("This event was simulated by the library.");

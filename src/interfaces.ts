@@ -1,8 +1,21 @@
+export interface HookedEventSource extends EventSource {
+  /** Map registered event listeners to their proxy. */
+  _mapListenerProxy: WeakMap<EventListenerOrEventListenerObject, { [eventType: string]: EventListener }>;
+
+  /**
+   * Create a proxy function to be called instead of original event listener.
+   * @param listener Listener to be proxied.
+   */
+  _createEventProxy: (listener: EventListener) => EventListener;
+
+  _nativeAddEventListener: EventTarget["addEventListener"];
+  _nativeRemoveEventListener: EventTarget["removeEventListener"];
+}
+
 export interface ExtendedMessageEvent extends MessageEvent {
   /** Tell that this event is simulated. */
   simulated?: boolean;
 }
-
 export interface MutableMessageEvent extends ExtendedMessageEvent {
   bubbles: MessageEvent["bubbles"];
   cancelable: MessageEvent["cancelable"];
@@ -24,65 +37,46 @@ export interface MutableMessageEvent extends ExtendedMessageEvent {
   type: MessageEvent["type"];
 }
 
-export interface HookedEventSource extends EventSource {
-  mapListenerProxy: WeakMap<EventListenerOrEventListenerObject, { [eventType: string]: EventListener }>;
-  genuineAddEventListener: EventTarget["addEventListener"];
-  genuineRemoveEventListener: EventTarget["removeEventListener"];
+export interface HookEventFunctionSync {
+  /**
+   * Hook function used to modify or block the event just before being received.
+   * @param type - Received event type.
+   * @param event - Received event object (which is mutable). You might be interested to modify `event.data`.
+   * @param eventSource - Connection that received the event.
+   * @returns A `MessageEvent` object, or `null` to block.
+   */
+  (type: string, event: MutableMessageEvent, eventSource: HookedEventSource): MutableMessageEvent | null;
+}
+export interface HookEventFunctionAsync {
+  /**
+   * Async hook function used to modify or block the event just before being received.
+   * @param type - Received event type.
+   * @param event - Received event object (which is mutable). You might be interested to modify `event.data`.
+   * @param eventSource - Connection that received the event.
+   * @param result - Function to be called to return asynchronously a `MessageEvent` object, or `null` to block
+   */
+  (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void): void;
+}
+export interface HookEventFunction {
+  /**
+   * Hook function used to modify or block the event just before being received.
+   *
+   * To make the function asynchronous, include the optional `result` callback parameter,
+   * and call it to return the event or `null` to block the event.
+   *
+   * @param type - Received event type.
+   * @param event - Received event object (which is mutable). You might be interested to modify `event.data`.
+   * @param eventSource - Connection that received the event.
+   * @param result - Optional. Use it to return a result asynchronously.
+   * @returns If `result` not included: a `MessageEvent` object, or `null` to block.
+   */
+  (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void): MutableMessageEvent | null | void;
 }
 
-export type HookEventFunctionSync = (type: string, event: MutableMessageEvent, eventSource: HookedEventSource) => MutableMessageEvent | null;
-export type HookEventFunctionAsync = (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void) => void;
-
-export type HookEventFunction = (
-  type: string,
-  event: MutableMessageEvent,
-  eventSource: HookedEventSource,
-  result: (event: MutableMessageEvent | null) => void
-) => MutableMessageEvent | null | void;
-
-export interface EventSourceHook {
+export interface HookOpenFunction {
   /**
-   * Fires when a connection is opened.
-   * @param eventSource `EventSource` object bound to the connection.
+   * Hook function used to intercept opened connection.
+   * @param eventSource Opened connection.
    */
-  onconnect: ((eventSource: HookedEventSource) => void) | null;
-
-  /**
-   * Fires when a message event is received from the server.
-   * Invoked before calling the native `EventSource`'s `onmessage` event handler.
-   *
-   * This method must return an event whose properties can be modified as well. You might be interested in modifying, `event.data` or `event.origin` usually.
-   *
-   * If you want to block the message event from being received, then return `null`.
-   *
-   * @param event Received mutable message event.
-   * @param url Source URL.
-   * @param eventSource `EventSource` object bound to the connection.
-   * @returns A mutable `MessageEvent` object, or `null` to block.
-   */
-  // onmessage: ((event: MutableMessageEvent, url: string, eventSource: HookedEventSource) => MutableMessageEvent | null) | null;
-
-  eventListener: HookEventFunction | null;
-
-  hookEvent(listener: HookEventFunction | false): void;
-
-  /**
-   * Enable server-sent events hook (by swapping the native `EventSource` constructor).
-   * @note Not enabled by default.
-   */
-  enable(): void;
-
-  /**
-   * Disable server-sent events hook (by swapping the native `EventSource` constructor back in).
-   */
-  disable(): void;
-
-  /**
-   * Simulate a received message event. It will be handled as if it were an authentic message received from the server.
-   * @note The `simulated` property is set to `true` on the `eventSource` object.
-   * @param eventSource `EventSource` connection where the message event should be simulated.
-   * @param type Event type. Use `message` if you want a non-typed event.
-   * @param options Options to be passed to the event (such as data).
-   */
-  simulate(eventSource: EventSource | HookedEventSource, type: string, options?: MessageEventInit): void;
+  (eventSource: HookedEventSource): void;
 }

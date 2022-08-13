@@ -20,7 +20,7 @@ let stream: EventSource | null;
 
 /**
  * Connect to an event stream.
- * @param url Server URL that serves the event stream.
+ * @param url - Server URL that serves the event stream.
  * @returns A promise that resolves to a `EventSource` instance.
  */
 export function startClient(url: string): Promise<EventSource> {

@@ -7,8 +7,8 @@ let esResponse: http.ServerResponse | null;
 
 /**
  * Start the server that serves the event stream.
- * @param port Server port.
- * @param endpoint URL endpoint of the event stream.
+ * @param port - Server port.
+ * @param endpoint - URL endpoint of the event stream.
  * @returns A promise that resolves to a `http.Server` once running.
  */
 export function startServer(port: number, endpoint: string): Promise<http.Server> {
@@ -39,16 +39,16 @@ export function startServer(port: number, endpoint: string): Promise<http.Server
  * @returns A promise that resolves when the server is closed.
  */
 export function stopServer(): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     server ? server.close(() => resolve()) : resolve();
   });
 }
 
 /**
  * Send an event through the event stream.
- * @param type Event type.
- * @param data Data to send (automatically serialized to JSON).
- * @param id Event identifier.
+ * @param type - Event type.
+ * @param data - Data to send (automatically serialized to JSON).
+ * @param id - Event identifier.
  * @throws {Error} If the event stream is not opened.
  */
 export function sendEvent(type?: string, data: any = {}, id?: string): void {

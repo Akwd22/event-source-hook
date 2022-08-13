@@ -139,8 +139,11 @@ export default {
   // A list of paths to modules that run some code to configure or set up the testing framework before each test
   // setupFilesAfterEnv: [],
 
-  // The number of seconds after which a test is considered as slow and reported as such in the results.
+  // The number of seconds after which a test is considered as slow and reported as such in the results
   // slowTestThreshold: 5,
+
+  // Default timeout of a test in milliseconds.
+  testTimeout: 1000,
 
   // A list of paths to snapshot serializer modules Jest should use for snapshot testing
   // snapshotSerializers: [],
