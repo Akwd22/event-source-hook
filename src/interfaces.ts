@@ -73,10 +73,10 @@ export interface HookEventFunction {
   (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void): MutableMessageEvent | null | void;
 }
 
-export interface HookOpenFunction {
+export interface HookCreateFunction {
   /**
-   * Hook function used to intercept opened connection.
-   * @param eventSource Opened connection.
+   * Hook function used to intercept new instanced `EventSource`.
+   * @param eventSource New connection.
    */
   (eventSource: HookedEventSource): void;
 }

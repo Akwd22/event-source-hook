@@ -1,4 +1,4 @@
-import { ExtendedMessageEvent, HookedEventSource, HookEventFunction, HookEventFunctionAsync, HookEventFunctionSync, HookOpenFunction, MutableMessageEvent } from "./interfaces";
+import { ExtendedMessageEvent, HookedEventSource, HookEventFunction, HookEventFunctionAsync, HookEventFunctionSync, HookCreateFunction, MutableMessageEvent } from "./interfaces";
 
 const NativeEventSource = EventSource;
 
@@ -10,7 +10,7 @@ const NativeEventSource = EventSource;
 function ToMutableMessageEvent(messageEvent: ExtendedMessageEvent): MutableMessageEvent {
   const self = {} as MutableMessageEvent;
 
-    self.bubbles = messageEvent.bubbles || false;
+  self.bubbles = messageEvent.bubbles || false;
   self.cancelable = messageEvent.cancelable || false;
   self.cancelBubble = messageEvent.cancelBubble || false;
   self.composed = messageEvent.composed || false;
@@ -126,29 +126,29 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
   es.onmessage = null;
 
-  /* ---------------------------- Spoof connection ---------------------------- */
+  /* -------------------------------------------------------------------------- */
 
-  // Call the open hook function before returning the connection.
-  ESHook.openHook?.(es);
+  // Call the create hook function before returning the instance.
+  ESHook.createHook?.(es);
 
   return es;
 }
 
 /** Library `event-source-hook` static class that provides `EventSource` hooking utilities. */
 class ESHook {
-  private static _openHook: HookOpenFunction | null;
+  private static _createHook: HookCreateFunction | null;
   private static _eventHook: HookEventFunction | null;
 
   /* ------------------------------- Properties ------------------------------- */
 
-  /** Hook function invoked just before a connection is opened. */
-  static get openHook() {
-    return this._openHook;
+  /** Hook function invoked when a new `EventSource` is instanced. */
+  static get createHook() {
+    return this._createHook;
   }
 
-  /** Hook function invoked just before a connection is opened. */
-  static set openHook(func) {
-    this._openHook = typeof func === "function" ? func : null;
+  /** Hook function invoked when a new `EventSource` is instanced. */
+  static set createHook(func) {
+    this._createHook = typeof func === "function" ? func : null;
   }
 
   /** Hook function invoked just before an event is received on any connection. */

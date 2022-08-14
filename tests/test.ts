@@ -19,8 +19,8 @@ let hookedEs: HookedEventSource;
 
 beforeEach(async () => {
   ESHook.enable();
-  ESHook.openHook = (es) => {
-    ESHook.openHook = null;
+  ESHook.createHook = (es) => {
+    ESHook.createHook = null;
     hookedEs = es;
   };
 
@@ -32,7 +32,7 @@ afterEach(async () => {
   await client.stopClient();
   await server.stopServer();
 
-  ESHook.openHook = null;
+  ESHook.createHook = null;
   ESHook.eventHook = null;
 });
 
@@ -286,16 +286,16 @@ describe("# `ESHook` Class Methods", () => {
 /* ------------------------------- Properties ------------------------------- */
 
 describe("# `ESHook` Class Properties", () => {
-  it("`openHook`", () => {
+  it("`createHook`", () => {
     const func = () => {};
 
-    expect(ESHook.openHook).toBeNull();
+    expect(ESHook.createHook).toBeNull();
 
-    ESHook.openHook = func;
-    expect(ESHook.openHook).toBe(func);
+    ESHook.createHook = func;
+    expect(ESHook.createHook).toBe(func);
 
-    ESHook.openHook = null;
-    expect(ESHook.openHook).toBeNull();
+    ESHook.createHook = null;
+    expect(ESHook.createHook).toBeNull();
   });
 
   it("`eventHook`", () => {
