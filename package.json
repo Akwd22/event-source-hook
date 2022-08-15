@@ -5,14 +5,15 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
-    "lib/**/*"
+    "lib"
   ],
   "scripts": {
-    "test": "jest",
-    "build": "tsc",
+    "clean": "rimraf lib browser",
+    "build": "(npm run clean) && (tsc)",
     "browser": "(npm run build) && (browserify lib/browser.js -o browser/eshook.js -t [ babelify ]) && (uglifyjs browser/eshook.js -o browser/eshook.min.js)",
-    "format": "prettier -w src/**/*.ts tests/**/*.ts",
+    "test": "jest",
     "lint": "eslint src",
+    "format": "prettier -w src tests",
     "prepare": "npm run build",
     "prepublishOnly": "(npm run test) && (npm run lint)",
     "preversion": "(npm run test) && (npm run lint)",

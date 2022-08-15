@@ -1,5 +1,6 @@
 import server from "./sse-server";
 import client from "./sse-client";
+import utils from "./utils";
 
 import ESHook from "../src/index";
 import { ExtendedMessageEvent, HookedEventSource, HookEventFunctionAsync, HookEventFunctionSync } from "../src/interfaces";
@@ -40,59 +41,74 @@ afterEach(async () => {
 /*                                 Unit Tests                                 */
 /* -------------------------------------------------------------------------- */
 
-async function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
+/* ------------------------------- Create Hook ------------------------------ */
 
-/* ----------------------------- Connect Hooking ---------------------------- */
-
-describe("# Connect Hook", () => {
+describe("# Create Hook", () => {
   it("intercepts any opened connection", () => {
     expect(hookedEs).toBe(clientEs);
   });
 });
 
-/* ------------------------------ Event Hooking ----------------------------- */
+/* ------------------------------- Event Hook ------------------------------- */
 
 describe("# Event Hook", () => {
   describe("## `EventSource.addEventListener()` impl.", () => {
     it("takes a listener function successfully", (done) => {
-      clientEs.addEventListener("message", () => done());
-      server.sendEvent();
+      const type = utils.uniqueString();
+      clientEs.addEventListener(type, () => done());
+      server.sendEvent(type);
     });
 
     it("takes a listener object successfully", (done) => {
-      clientEs.addEventListener("message", { handleEvent: () => done() });
-      server.sendEvent();
+      const type = utils.uniqueString();
+      clientEs.addEventListener(type, { handleEvent: () => done() });
+      server.sendEvent(type);
     });
 
     it("throws if a function or object is not passed as a listener", () => {
       // @ts-ignore
-      expect(() => clientEs.addEventListener("message1", 1)).toThrowError(TypeError);
+      expect(() => clientEs.addEventListener(utils.uniqueString(), 1)).toThrowError(TypeError);
       // @ts-ignore
-      expect(() => clientEs.addEventListener("message2", null)).toThrowError(TypeError);
+      expect(() => clientEs.addEventListener(utils.uniqueString(), null)).toThrowError(TypeError);
       // @ts-ignore
-      expect(() => clientEs.addEventListener("message3", true)).toThrowError(TypeError);
+      expect(() => clientEs.addEventListener(utils.uniqueString(), true)).toThrowError(TypeError);
       // @ts-ignore
-      expect(() => clientEs.addEventListener("message4", "test")).toThrowError(TypeError);
+      expect(() => clientEs.addEventListener(utils.uniqueString(), "test")).toThrowError(TypeError);
 
       // @ts-ignore
-      expect(() => clientEs.addEventListener("message5", () => {})).not.toThrowError(TypeError);
+      expect(() => clientEs.addEventListener(utils.uniqueString(), () => {})).not.toThrowError(TypeError);
       // @ts-ignore
-      expect(() => clientEs.addEventListener("message6", {})).not.toThrowError(TypeError);
+      expect(() => clientEs.addEventListener(utils.uniqueString(), {})).not.toThrowError(TypeError);
     });
   });
 
   describe("## `EventSource.removeEventListener()` impl.", () => {
     it("removes passed listener when called", async () => {
-      const func = jest.fn();
+      // Should removes listener from event types `open` and `error`.
+      const funcOpen = jest.fn();
+      const funcError = jest.fn();
 
-      clientEs.addEventListener("message", func);
-      clientEs.removeEventListener("message", func);
-      server.sendEvent();
+      clientEs.addEventListener("open", funcOpen);
+      clientEs.removeEventListener("open", funcOpen);
+      clientEs.addEventListener("error", funcError);
+      clientEs.removeEventListener("error", funcError);
+      server.sendEvent("open");
+      server.sendEvent("error");
 
-      await wait(50);
-      expect(func).not.toHaveBeenCalled();
+      await utils.wait(50);
+      expect(funcOpen).not.toHaveBeenCalled();
+      expect(funcError).not.toHaveBeenCalled();
+
+      // Should removes listener from any other event type.
+      const funcAny = jest.fn();
+      const type = utils.uniqueString();
+
+      clientEs.addEventListener(type, funcAny);
+      clientEs.removeEventListener(type, funcAny);
+      server.sendEvent(type);
+
+      await utils.wait(50);
+      expect(funcAny).not.toHaveBeenCalled();
     });
 
     it("removes listener when `EventSource.onmessage` nulled", async () => {
@@ -100,19 +116,42 @@ describe("# Event Hook", () => {
 
       clientEs.onmessage = func;
       clientEs.onmessage = null;
-      server.sendEvent();
+      server.sendEvent("message");
 
-      await wait(50);
+      await utils.wait(50);
       expect(func).not.toHaveBeenCalled();
     });
   });
 
   describe("## Hook behaviour", () => {
-    it("intercepts any event type - with `EventSource.addEventListener()`", (done) => {
-      const type = String(Math.random());
-      ESHook.eventHook = () => done();
+    it("intercepts any event type - with `EventSource.addEventListener()`", async () => {
+      // Should not intercept event types `open` and `error`.
+      const funcOpen = jest.fn();
+      const funcError = jest.fn();
+
+      ESHook.eventHook = (type) => {
+        if (type === "open") funcOpen();
+        if (type === "error") funcError();
+      };
+
+      clientEs.addEventListener("open", () => {});
+      clientEs.addEventListener("error", () => {});
+      server.sendEvent("open");
+      server.sendEvent("error");
+
+      await utils.wait(50);
+      expect(funcOpen).not.toHaveBeenCalled();
+      expect(funcError).not.toHaveBeenCalled();
+
+      // Should intercept any other event type.
+      const type = utils.uniqueString();
+      const [toBeCalled, callMe] = utils.promisifyCallback();
+
+      ESHook.eventHook = callMe;
       clientEs.addEventListener(type, () => {});
       server.sendEvent(type);
+
+      await toBeCalled;
     });
 
     it("intercepts `message` event type - with `EventSource.onmessage`", (done) => {
@@ -122,19 +161,21 @@ describe("# Event Hook", () => {
     });
 
     it("lets the event from being received if not blocked", (done) => {
+      const type = utils.uniqueString();
       ESHook.eventHook = ({}, event, {}) => event;
-      clientEs.addEventListener("message", () => done());
-      server.sendEvent();
+      clientEs.addEventListener(type, () => done());
+      server.sendEvent(type);
     });
 
     it("blocks the event from being received if blocked", async () => {
+      const type = utils.uniqueString();
       const func = jest.fn();
 
       ESHook.eventHook = () => null;
-      clientEs.addEventListener("message", func);
-      server.sendEvent();
+      clientEs.addEventListener(type, func);
+      server.sendEvent(type);
 
-      await wait(50);
+      await utils.wait(50);
       expect(func).not.toHaveBeenCalled();
     });
 
@@ -156,17 +197,17 @@ describe("# Event Hook", () => {
       };
 
       clientEs.addEventListener("test", () => {});
-
       server.sendEvent("test", "data", "id");
     });
 
     it("unattaches the hook function", (done) => {
+      const type = utils.uniqueString();
       const func = jest.fn();
 
       ESHook.eventHook = func;
       ESHook.eventHook = null;
 
-      clientEs.addEventListener("message", () => {
+      clientEs.addEventListener(type, () => {
         try {
           expect(func).not.toHaveBeenCalled();
           done();
@@ -175,23 +216,25 @@ describe("# Event Hook", () => {
         }
       });
 
-      server.sendEvent();
+      server.sendEvent(type);
     });
 
     it("(async hook) lets the event from being received if not blocked", (done) => {
+      const type = utils.uniqueString();
       ESHook.eventHook = ({}, event, {}, result) => result(event);
-      clientEs.addEventListener("message", () => done());
-      server.sendEvent();
+      clientEs.addEventListener(type, () => done());
+      server.sendEvent(type);
     });
 
     it("(async hook) blocks the event from being received if blocked", async () => {
+      const type = utils.uniqueString();
       const func = jest.fn();
 
       ESHook.eventHook = ({}, {}, {}, result) => result(null);
-      clientEs.addEventListener("message", func);
-      server.sendEvent();
+      clientEs.addEventListener(type, func);
+      server.sendEvent(type);
 
-      await wait(50);
+      await utils.wait(50);
       expect(func).not.toHaveBeenCalled();
     });
   });
@@ -218,12 +261,12 @@ describe("# `ESHook` Class Methods", () => {
     it("receives the simulated event with default options", (done) => {
       expect.assertions(4);
 
-      clientEs.onmessage = (e) => {
+      clientEs.onmessage = (event) => {
         try {
-          expect(e.type).toBe("message");
-          expect(e.data).toBeNull();
-          expect(e.origin).toBe(new URL(clientEs.url).origin);
-          expect(e.lastEventId).toBe("");
+          expect(event.type).toBe("message");
+          expect(event.data).toBeNull();
+          expect(event.origin).toBe(new URL(clientEs.url).origin);
+          expect(event.lastEventId).toBe("");
           done();
         } catch (err) {
           done(err);
@@ -236,12 +279,12 @@ describe("# `ESHook` Class Methods", () => {
     it("receives the simulated event with proper options", (done) => {
       expect.assertions(4);
 
-      clientEs.addEventListener("test", (e) => {
+      clientEs.addEventListener("test", (event) => {
         try {
-          expect(e.type).toBe("test");
-          expect(e.data).toBe(JSON.stringify("test"));
-          expect(e.origin).toBe("http://test");
-          expect(e.lastEventId).toBe("1");
+          expect(event.type).toBe("test");
+          expect(event.data).toBe(JSON.stringify("test"));
+          expect(event.origin).toBe("http://test");
+          expect(event.lastEventId).toBe("1");
           done();
         } catch (err) {
           done(err);
@@ -254,9 +297,9 @@ describe("# `ESHook` Class Methods", () => {
     it("adds a property `simulated` to `true` to event object", (done) => {
       expect.assertions(1);
 
-      clientEs.onmessage = (e: ExtendedMessageEvent) => {
+      clientEs.onmessage = (event: ExtendedMessageEvent) => {
         try {
-          expect(e.simulated).toBe(true);
+          expect(event.simulated).toBe(true);
           done();
         } catch (err) {
           done(err);
@@ -269,9 +312,9 @@ describe("# `ESHook` Class Methods", () => {
     it("serializes event data to JSON", (done) => {
       expect.assertions(1);
 
-      clientEs.onmessage = (e) => {
+      clientEs.onmessage = (event) => {
         try {
-          expect(e.data).toBe(JSON.stringify(["array"]));
+          expect(event.data).toBe(JSON.stringify(["array"]));
           done();
         } catch (err) {
           done(err);

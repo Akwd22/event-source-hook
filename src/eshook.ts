@@ -71,6 +71,11 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
   // @ts-ignore
   es.addEventListener = function (type, listener, options) {
+    // Ignore these types that are not event message.
+    if (type === "open" || type === "error") {
+      return this._nativeAddEventListener(type, listener, options);
+    }
+
     // Throw error if wrong listener type like official impl.
     if (!["function", "object"].includes(typeof listener)) {
       throw new TypeError("Failed to execute 'addEventListener' on 'EventTarget': parameter 2 is not of type 'Object'.");
@@ -96,6 +101,11 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
   // @ts-ignore
   es.removeEventListener = function (type, listener, options) {
+    // Ignore these types that are not event message.
+    if (type === "open" || type === "error") {
+      return this._nativeRemoveEventListener(type, listener, options);
+    }
+
     const proxies = this._mapListenerProxy.get(listener);
     const proxy = proxies?.[type];
 
