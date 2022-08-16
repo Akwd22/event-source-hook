@@ -5,46 +5,56 @@
 <div align="center">
   <h3 align="center">Event Source Hook</h3>
   
-  Easily intercept, modify, and simulate [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) server-sent message events.
+A library to easily intercept, modify, and simulate [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) server-sent events.
+
+![build pass](https://img.shields.io/github/workflow/status/Akwd22/event-source-hook/Node.js%20CI)
+![latest release](https://img.shields.io/npm/v/event-source-hook?label=release)
+![types included](https://img.shields.io/npm/types/event-source-hook)
+![total downloads](https://img.shields.io/npm/dt/event-source-hook)
+
 </div>
 
 <!-- TABLE OF CONTENTS -->
 <details>
   <summary>Table of Contents</summary>
   <ol>
-    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#features">Features</a></li>
     <li><a href="#installation">Installation</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#documentation">Documentation</a></li>
   </ol>
 </details>
 
-<!-- ROADMAP -->
+<!-- FEATURES -->
 
-## Roadmap
+## Features
 
-- [ ] Test cases
-- [ ] Check if it works in browser environment (non-Node)
-- [ ] Add `addEventListener`, `removeEventListener`, ..., in `EventSourceHook` library object
-- [ ] Also spoof native `EventSource`'s `onmessage`
-- [ ] Memory leak? since `EventSource`'s is not spoofed`removeEventListener`
-- [ ] Check disable function if hook is still active
-- [ ] Async hook function
-- [ ] Keep track of all opened connections
+- [x] Intercept new connections
+  - [ ] Modify connections (url, etc.)
+  - [ ] Block connections
+- [x] Intercept incoming events
+  - [x] Modify events (data, origin, id, etc.)
+  - [x] Block events
+- [x] Simulate incoming events
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
-<!-- Installation -->
+<!-- INSTALLATION -->
 
 ## Installation
 
-Install with npm:
+**Install with npm**:
 
 ```sh
 npm install --save event-source-hook
 ```
 
-In a browser: soon.
+**Install in a browser**:
+
+- download file `browser/eshook.js` or `browser/eshook.min.js`
+- import it on your web page
+
+_Note: these scripts are polyfilled, so it should run on every browser supporting `EventSource` API._
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
@@ -52,132 +62,188 @@ In a browser: soon.
 
 ## Usage
 
+⚠️ You must **load** and **enable** the library **first**, to be able to spoof native `EventSource` before other libraries or code instantiate it.
+
 ### 1. Enable the library after importing it
 
-This applies the patch to the native `EventSource` object.
+This applies the patch to the native `EventSource` constructor.
+
+<details>
+  <summary>View code</summary>
+  <p>
+
+**In Node**:
 
 ```js
-import EventSourceHook from "event-source-hook"; // or, if in a browser, it will be automatically exposed globally.
-EventSourceHook.enable();
+import ESHook from "event-source-hook";
+ESHook.enable();
 ```
 
-### 2. Hook the connections
+**In a browser**:
 
-Attach a hook to listen each new connection with an `EventSource`. You can save the `EventSource` instances for later use if you wish.
+```js
+// In a browser, the library object is exposed globally.
+ESHook.enable();
+```
+
+  </p>
+</details>
+
+### 2. Hook new connections
+
+Attach a hook function to listen each new opening connection. You can save `EventSource` instances for later use if you wish.
+
+<details>
+  <summary>View code</summary>
+  <p>
 
 ```js
 const connections = [];
 
-EventSourceHook.onconnect = (eventSource) => {
+ESHook.createHook = (eventSource) => {
   console.log("New connection:", eventSource);
   connections.push(eventSource);
 };
 ```
 
-### 3. Simulate a message
+  </p>
+</details>
 
-You can simulate a received message event. It will be handled as if it were an authentic message received from the server.  
-It is required to specify on which connection we want to simulate the message.
+### 3. Simulate an event
+
+You can simulate an incoming `MessageEvent`. It will be handled as if it were an authentic event received from the server.  
+It is required to specify on which connection you want to simulate the event.
+
+<details>
+  <summary>View code</summary>
+  <p>
 
 ```js
-const data = {
-  foo: "foo",
-  bar: "bar",
+// Connection where the event should be received.
+const eventSource = connections[0];
+// Event type: can be anything.
+const type = "message";
+// Event options.
+// See: https://developer.mozilla.org/en-US/docs/Web/API/MessageEvent/MessageEvent#options
+const options = {
+  data: { foo: "bar" },
+  lastEventId: "id",
 };
 
-EventSourceHook.simulate(connections[0], data);
+ESHook.simulate(eventSource, type, options);
 ```
 
-The `simulated` property is set to `true` on the `MessageEvent` object. Thus, it is possible to detect the simulated message like in section 4 just below.
+_Note: the `simulated` property is set to `true` on the `MessageEvent` object. Thus, it is possible to detect the simulated event like in section 4 just below._
 
-### 4. Intercept, then modify or block a message event
+  </p>
+</details>
 
-Attach a hook to listen for incoming message events just before the native `EventSource` receives them.
+### 4. Intercept, then modify or block an event
+
+Attach a hook function to listen for incoming `MessageEvent` just before the native `EventSource` receives them.  
+_Note: the hook function can be synchronous or asynchronous (see, below examples)._
+
+You can modify all event object's properties (such as `data`, `lastEventId`) as it is mutable.
+
+<details>
+  <summary>View code (synchronous)</summary>
+  <p>
+
+Return the (modified) event or `null` to block the event.
 
 ```js
-EventSourceHook.onmessage = (event, url, eventSource) => {
-  // Block a message from being received.
-  if (url === "https://foo") {
+EventSourceHook.eventHook = (type, event, eventSource) => {
+  // Block incoming events with type `message`.
+  if (type === "message") {
     return null;
   }
 
-  // Modify a message data before being received by listeners.
-  if (url === "https://bar") {
-    const obj = JSON.parse(event.data);
-    obj.foo = "new value";
+  // Modify incoming events data from URL `https://test`.
+  if (eventSource.url === "https://test") {
+    const data = JSON.parse(event.data);
+    data.foo = "new value";
+    event.data = JSON.stringify(data);
 
-    event.data = JSON.stringify(obj.foo);
     return event;
   }
 
-  // Detect simulated message events.
+  // Detect simulated events.
   if (event.simulated) {
     console.log("This event was simulated by the library.");
   }
 
-  // Leave the other messages as they are.
+  // Leave the other events as they are.
   return event;
 };
 ```
 
+  </p>
+</details>
+
+<details>
+  <summary>View code (asynchronous)</summary>
+  <p>
+
+To make the hook function asynchronous, include the optional `result` callback parameter, and call it to return the (modified) event or `null` to block the event.
+
+**Example with promise**:
+
+```js
+EventSourceHook.eventHook = (type, event, eventSource, result) => {
+  // Block incoming events with type `message`.
+  if (type === "message") {
+    result(null);
+    return;
+  }
+
+  // Modify incoming events data from URL `https://test`.
+  if (eventSource.url === "https://test") {
+    fetchData().then((data) => {
+      event.data = JSON.stringify(data);
+      result(event);
+    });
+
+    return;
+  }
+
+  // Leave the other events as they are.
+  result(event);
+};
+```
+
+**Example with async/await**:
+
+```js
+EventSourceHook.eventHook = async (type, event, eventSource, result) => {
+  // Block incoming events with type `message`.
+  if (type === "message") {
+    result(null);
+    return;
+  }
+
+  // Modify incoming events data from URL `https://test`.
+  if (eventSource.url === "https://test") {
+    const data = await fetchData();
+    event.data = JSON.stringify(data);
+
+    result(event);
+    return;
+  }
+
+  // Leave the other events as they are.
+  result(event);
+};
+```
+
+  </p>
+</details>
+
 <p align="right">(<a href="#top">back to top</a>)</p>
 
-<!-- Documentation -->
+<!-- DOCUMENTATION -->
 
 ## Documentation
 
-Below, the TypeScript documentation:
-
-```ts
-interface EventSourceHook {
-  /**
-   * Fires when a connection is opened.
-   * @param eventSource `EventSource` object bound to the connection.
-   */
-  onconnect: ((eventSource: EventSource) => void) | null;
-
-  /**
-   * Fires when a message event is received from the server.
-   * Invoked before calling the native `EventSource`'s `onmessage` event handler.
-   *
-   * This method must return an event whose properties can be modified as well.
-   * You might be interested in modifying, `event.data` or `event.origin` usually.
-   *
-   * If you want to block the message event from being received, then return `null`.
-   *
-   * @param event Received mutable message event.
-   * @param url Source URL.
-   * @param eventSource `EventSource` object bound to the connection.
-   * @returns A mutable `MessageEvent` object, or `null` to block.
-   */
-  onmessage: ((event: IMutableMessageEvent, url: string, eventSource: EventSource) => IMutableMessageEvent | null) | null;
-
-  /**
-   * Enable server-sent events hook (by swapping the native `EventSource` constructor).
-   * @note Not enabled by default.
-   */
-  enable(): void;
-
-  /**
-   * Disable server-sent events hook (by swapping the native `EventSource` constructor back in).
-   */
-  disable(): void;
-
-  /**
-   * Simulate a received message event. It will be handled as if it were an authentic message received from the server.
-   * @note The `simulated` property is set to `true` on the `MessageEvent` object.
-   * @param eventSource `EventSource` connection where the message event should be simulated.
-   * @param data Any serializable JSON data.
-   */
-  simulate(eventSource: EventSource, data: any): void;
-}
-
-interface IMutableMessageEvent extends MessageEvent {
-  /**
-   * Tell that this event is simulated.
-   */
-  simulated: boolean;
-}
-```
+View [API docs](https://github.com/Akwd22/event-source-hook/wiki/API-Documentation).
 
 <p align="right">(<a href="#top">back to top</a>)</p>

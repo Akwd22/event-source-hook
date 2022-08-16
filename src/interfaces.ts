@@ -12,6 +12,8 @@ export interface HookedEventSource extends EventSource {
   _nativeRemoveEventListener: EventTarget["removeEventListener"];
 }
 
+/* ------------------------------ Message Event ----------------------------- */
+
 export interface ExtendedMessageEvent extends MessageEvent {
   /** Tell that this event is simulated. */
   simulated?: boolean;
@@ -36,6 +38,8 @@ export interface MutableMessageEvent extends ExtendedMessageEvent {
   timeStamp: MessageEvent["timeStamp"];
   type: MessageEvent["type"];
 }
+
+/* --------------------------- Event Hook Function -------------------------- */
 
 export interface HookEventFunctionSync {
   /**
@@ -72,6 +76,8 @@ export interface HookEventFunction {
    */
   (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void): MutableMessageEvent | null | void;
 }
+
+/* -------------------------- Create Hook Function -------------------------- */
 
 export interface HookCreateFunction {
   /**
