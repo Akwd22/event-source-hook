@@ -1,5 +1,4 @@
-import server from "./sse-server";
-import client from "./sse-client";
+import sse from "./sse-client";
 import utils from "./utils";
 
 import ESHook from "../src/index";
@@ -25,14 +24,11 @@ beforeEach(async () => {
     hookedEs = es;
   };
 
-  await server.startServer(3000, "/es");
-  clientEs = await client.startClient("http://127.0.0.1:3000/es");
+  clientEs = await sse.open();
 });
 
-afterEach(async () => {
-  await client.stopClient();
-  await server.stopServer();
-
+afterEach(() => {
+  sse.close();
   ESHook.createHook = null;
   ESHook.eventHook = null;
 });
@@ -45,7 +41,7 @@ afterEach(async () => {
 
 describe("# Create Hook", () => {
   it("intercepts any opened connection", () => {
-    expect(hookedEs).toBe(clientEs);
+    expect(hookedEs).toBe(clientEs as HookedEventSource);
   });
 });
 
@@ -56,13 +52,13 @@ describe("# Event Hook", () => {
     it("takes a listener function successfully", (done) => {
       const type = utils.uniqueString();
       clientEs.addEventListener(type, () => done());
-      server.sendEvent(type);
+      sse.sendEvent(type);
     });
 
     it("takes a listener object successfully", (done) => {
       const type = utils.uniqueString();
       clientEs.addEventListener(type, { handleEvent: () => done() });
-      server.sendEvent(type);
+      sse.sendEvent(type);
     });
 
     it("throws if a function or object is not passed as a listener", () => {
@@ -85,38 +81,38 @@ describe("# Event Hook", () => {
   describe("## `EventSource.removeEventListener()` impl.", () => {
     it("removes passed listener when called", async () => {
       // Should removes listener from event types `open` and `error`.
-      const funcOpen = jest.fn();
-      const funcError = jest.fn();
+      const funcOpen = jasmine.createSpy();
+      const funcError = jasmine.createSpy();
 
       clientEs.addEventListener("open", funcOpen);
       clientEs.removeEventListener("open", funcOpen);
       clientEs.addEventListener("error", funcError);
       clientEs.removeEventListener("error", funcError);
-      server.sendEvent("open");
-      server.sendEvent("error");
+      sse.sendEvent("open");
+      sse.sendEvent("error");
 
       await utils.wait(50);
       expect(funcOpen).not.toHaveBeenCalled();
       expect(funcError).not.toHaveBeenCalled();
 
       // Should removes listener from any other event type.
-      const funcAny = jest.fn();
+      const funcAny = jasmine.createSpy();
       const type = utils.uniqueString();
 
       clientEs.addEventListener(type, funcAny);
       clientEs.removeEventListener(type, funcAny);
-      server.sendEvent(type);
+      sse.sendEvent(type);
 
       await utils.wait(50);
       expect(funcAny).not.toHaveBeenCalled();
     });
 
     it("removes listener when `EventSource.onmessage` nulled", async () => {
-      const func = jest.fn();
+      const func = jasmine.createSpy();
 
       clientEs.onmessage = func;
       clientEs.onmessage = null;
-      server.sendEvent("message");
+      sse.sendEvent("message");
 
       await utils.wait(50);
       expect(func).not.toHaveBeenCalled();
@@ -126,8 +122,8 @@ describe("# Event Hook", () => {
   describe("## Hook behaviour", () => {
     it("intercepts any event type - with `EventSource.addEventListener()`", async () => {
       // Should not intercept event types `open` and `error`.
-      const funcOpen = jest.fn();
-      const funcError = jest.fn();
+      const funcOpen = jasmine.createSpy();
+      const funcError = jasmine.createSpy();
 
       ESHook.eventHook = (type) => {
         if (type === "open") funcOpen();
@@ -136,8 +132,8 @@ describe("# Event Hook", () => {
 
       clientEs.addEventListener("open", () => {});
       clientEs.addEventListener("error", () => {});
-      server.sendEvent("open");
-      server.sendEvent("error");
+      sse.sendEvent("open");
+      sse.sendEvent("error");
 
       await utils.wait(50);
       expect(funcOpen).not.toHaveBeenCalled();
@@ -149,7 +145,7 @@ describe("# Event Hook", () => {
 
       ESHook.eventHook = callMe;
       clientEs.addEventListener(type, () => {});
-      server.sendEvent(type);
+      sse.sendEvent(type);
 
       await toBeCalled;
     });
@@ -157,31 +153,29 @@ describe("# Event Hook", () => {
     it("intercepts `message` event type - with `EventSource.onmessage`", (done) => {
       ESHook.eventHook = () => done();
       clientEs.onmessage = () => {};
-      server.sendEvent("message");
+      sse.sendEvent("message");
     });
 
     it("lets the event from being received if not blocked", (done) => {
       const type = utils.uniqueString();
       ESHook.eventHook = ({}, event, {}) => event;
       clientEs.addEventListener(type, () => done());
-      server.sendEvent(type);
+      sse.sendEvent(type);
     });
 
     it("blocks the event from being received if blocked", async () => {
       const type = utils.uniqueString();
-      const func = jest.fn();
+      const func = jasmine.createSpy();
 
       ESHook.eventHook = () => null;
       clientEs.addEventListener(type, func);
-      server.sendEvent(type);
+      sse.sendEvent(type);
 
       await utils.wait(50);
       expect(func).not.toHaveBeenCalled();
     });
 
     it("calls the hook function with proper args", (done) => {
-      expect.assertions(4);
-
       ESHook.eventHook = (type, event, eventSource) => {
         try {
           expect(type).toBe("test");
@@ -190,19 +184,19 @@ describe("# Event Hook", () => {
           expect(eventSource).toBe(hookedEs);
           done();
         } catch (err) {
-          done(err);
+          done.fail(err);
         }
 
         return null;
       };
 
       clientEs.addEventListener("test", () => {});
-      server.sendEvent("test", "data", "id");
+      sse.sendEvent("test", "data", "id");
     });
 
     it("unattaches the hook function", (done) => {
       const type = utils.uniqueString();
-      const func = jest.fn();
+      const func = jasmine.createSpy();
 
       ESHook.eventHook = func;
       ESHook.eventHook = null;
@@ -212,27 +206,27 @@ describe("# Event Hook", () => {
           expect(func).not.toHaveBeenCalled();
           done();
         } catch (err) {
-          done(err);
+          done.fail(err);
         }
       });
 
-      server.sendEvent(type);
+      sse.sendEvent(type);
     });
 
     it("(async hook) lets the event from being received if not blocked", (done) => {
       const type = utils.uniqueString();
       ESHook.eventHook = ({}, event, {}, result) => result(event);
       clientEs.addEventListener(type, () => done());
-      server.sendEvent(type);
+      sse.sendEvent(type);
     });
 
     it("(async hook) blocks the event from being received if blocked", async () => {
       const type = utils.uniqueString();
-      const func = jest.fn();
+      const func = jasmine.createSpy();
 
       ESHook.eventHook = ({}, {}, {}, result) => result(null);
       clientEs.addEventListener(type, func);
-      server.sendEvent(type);
+      sse.sendEvent(type);
 
       await utils.wait(50);
       expect(func).not.toHaveBeenCalled();
@@ -259,8 +253,6 @@ describe("# `ESHook` Class Methods", () => {
 
   describe("## `simulate()`", () => {
     it("receives the simulated event with default options", (done) => {
-      expect.assertions(4);
-
       clientEs.onmessage = (event) => {
         try {
           expect(event.type).toBe("message");
@@ -269,7 +261,7 @@ describe("# `ESHook` Class Methods", () => {
           expect(event.lastEventId).toBe("");
           done();
         } catch (err) {
-          done(err);
+          done.fail(err);
         }
       };
 
@@ -277,8 +269,6 @@ describe("# `ESHook` Class Methods", () => {
     });
 
     it("receives the simulated event with proper options", (done) => {
-      expect.assertions(4);
-
       clientEs.addEventListener("test", (event) => {
         try {
           expect(event.type).toBe("test");
@@ -287,7 +277,7 @@ describe("# `ESHook` Class Methods", () => {
           expect(event.lastEventId).toBe("1");
           done();
         } catch (err) {
-          done(err);
+          done.fail(err);
         }
       });
 
@@ -295,14 +285,12 @@ describe("# `ESHook` Class Methods", () => {
     });
 
     it("adds a property `simulated` to `true` to event object", (done) => {
-      expect.assertions(1);
-
       clientEs.onmessage = (event: ExtendedMessageEvent) => {
         try {
           expect(event.simulated).toBe(true);
           done();
         } catch (err) {
-          done(err);
+          done.fail(err);
         }
       };
 
@@ -310,14 +298,12 @@ describe("# `ESHook` Class Methods", () => {
     });
 
     it("serializes event data to JSON", (done) => {
-      expect.assertions(1);
-
       clientEs.onmessage = (event) => {
         try {
           expect(event.data).toBe(JSON.stringify(["array"]));
           done();
         } catch (err) {
-          done(err);
+          done.fail(err);
         }
       };
 

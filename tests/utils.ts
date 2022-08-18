@@ -1,13 +1,10 @@
-import { randomUUID } from "crypto";
-import jestConfig from "../jest.config";
-
 /**
  * Promisify a callback so the promise resolves once the callback is called.
  * @param callback Function to promisify. Defaults to a no-op function.
- * @param timeout Milliseconds before timeout (reject the promise). Defaults to Jest config `testTimeout`.
+ * @param timeout Milliseconds before timeout (reject the promise). Defaults to no timeout.
  * @returns A promise and a resolver function that wraps the `callback`.
  */
-function promisifyCallback(callback?: Function, timeout: number = jestConfig.testTimeout): [Promise<void>, (...args: any[]) => void] {
+function promisifyCallback(callback?: Function, timeout?: number): [Promise<void>, (...args: any[]) => void] {
   let promiseResolve: (value: void) => void;
   let promiseReject: (reason?: any) => void;
   let timer: NodeJS.Timeout;
@@ -17,7 +14,7 @@ function promisifyCallback(callback?: Function, timeout: number = jestConfig.tes
     promiseReject = reject;
   });
 
-  timer = setTimeout(() => promiseReject("Promise timeout"), timeout);
+  if (timeout) timer = setTimeout(() => promiseReject("Promise timeout"), timeout);
 
   const resolver = (...args: any[]) => {
     clearTimeout(timer);
@@ -33,7 +30,7 @@ function promisifyCallback(callback?: Function, timeout: number = jestConfig.tes
  * @returns An unique string.
  */
 function uniqueString(): string {
-  return randomUUID();
+  return String(performance.now());
 }
 
 /**

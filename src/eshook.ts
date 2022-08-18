@@ -146,8 +146,8 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
 /** Library `event-source-hook` static class that provides `EventSource` hooking utilities. */
 class ESHook {
-  private static _createHook: HookCreateFunction | null;
-  private static _eventHook: HookEventFunction | null;
+  private static _createHook: HookCreateFunction | null = null;
+  private static _eventHook: HookEventFunction | null = null;
 
   /* ------------------------------- Properties ------------------------------- */
 

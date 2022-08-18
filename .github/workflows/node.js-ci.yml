@@ -8,11 +8,12 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     strategy:
       matrix:
@@ -28,6 +29,8 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run lint
+    - run: npm run test:get-chrome
+    - run: npm run test:get-firefox
     - run: npm run test
     - run: npm run build
     - run: npm run browser

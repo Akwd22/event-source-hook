@@ -1,44 +1,68 @@
-/**
- * Workaround: patches this function to correct the wrong implementation
- * of the `event-source` (https://github.com/EventSource/eventsource) imported library.
- */
-EventSource.prototype.dispatchEvent = function dispatchEvent(event) {
-  if (!event.type) {
-    throw new Error("UNSPECIFIED_EVENT_TYPE_ERR");
-  }
-
-  // Invoke event handlers synchronously.
-  // @ts-ignore
-  this.emit(event.type, event);
-
-  // Return `false` if event was default prevented.
-  return !(event.cancelable && event.defaultPrevented);
-};
-
 /** Client connection to the event stream. */
 let stream: EventSource | null;
+/** Client ID. */
+let clientId: number;
 
 /**
- * Connect to an event stream.
- * @param url - Server URL that serves the event stream.
- * @returns A promise that resolves to a `EventSource` instance.
+ * Connect to the event stream.
+ * @returns A promise that resolves to a `EventSource` instance once connected.
  */
-export function startClient(url: string): Promise<EventSource> {
+export function open(): Promise<EventSource> {
+  stream = new EventSource("/es");
+
   return new Promise((resolve, reject) => {
-    stream = new EventSource(url);
-    stream.onopen = () => resolve(stream!);
-    stream.onerror = (err) => reject(err);
+    if (!stream) {
+      reject("Event stream not created.");
+      return;
+    }
+
+    stream.addEventListener("client-id", (event) => {
+      clientId = event.data;
+      resolve(stream!);
+    });
+
+    stream.addEventListener("error", (error) => {
+      reject(error);
+    });
   });
 }
 
 /**
  * Close the connection to the event stream.
  */
-export function stopClient() {
+export function close(): void {
   stream?.close();
+  stream = null;
+}
+
+/**
+ * Ask the server to send an event through the event stream.
+ * @param type - Event type.
+ * @param data - Data to send (automatically serialized to JSON).
+ * @param id - Event identifier.
+ * @throws {Error} If the event stream is not opened.
+ */
+export async function sendEvent(type: string, data?: any, id?: string): Promise<void> {
+  if (stream?.readyState === stream?.CLOSED) {
+    throw new Error("Event stream is not opened");
+  }
+
+  await fetch("/event", {
+    method: "POST",
+    headers: new Headers({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      clientId: clientId,
+      event: {
+        type: type || "message",
+        data: data || "{}",
+        id: id,
+      },
+    }),
+  });
 }
 
 export default {
-  startClient,
-  stopClient,
+  open,
+  close,
+  sendEvent,
 };
