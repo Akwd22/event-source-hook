@@ -137,8 +137,8 @@ describe("[ES SPOOFING]", () => {
   describe("# `EventSource.removeEventListener` spoofed method ->", () => {
     it("removes passed listener when called", async () => {
       // Should removes listener from event types `open` and `error`.
-      const funcOpen = jasmine.createSpy();
-      const funcError = jasmine.createSpy();
+      const funcOpen = jasmine.createSpy("open");
+      const funcError = jasmine.createSpy("error");
 
       clientEs.addEventListener("open", funcOpen);
       clientEs.removeEventListener("open", funcOpen);
@@ -152,7 +152,7 @@ describe("[ES SPOOFING]", () => {
       expect(funcError).not.toHaveBeenCalled();
 
       // Should removes listener from any other event type.
-      const funcAny = jasmine.createSpy();
+      const funcAny = jasmine.createSpy("any");
       const type = utils.uniqueString();
 
       clientEs.addEventListener(type, funcAny);
@@ -281,8 +281,8 @@ describe("[ES SPOOFING]", () => {
 
     it("intercepts any event type - with `EventSource.addEventListener()`", async () => {
       // Should not intercept event types `open` and `error`.
-      const funcOpen = jasmine.createSpy();
-      const funcError = jasmine.createSpy();
+      const funcOpen = jasmine.createSpy("open");
+      const funcError = jasmine.createSpy("error");
 
       ESHook.eventHook = (type) => {
         if (type === "open") funcOpen();
@@ -336,16 +336,11 @@ describe("[ES SPOOFING]", () => {
 
     it("calls the hook function with proper args", (done) => {
       ESHook.eventHook = (type, event, eventSource) => {
-        try {
-          expect(type).toBe("test");
-          expect(event.data).toBe(JSON.stringify("data"));
-          expect(event.lastEventId).toBe("id");
-          expect(clientEs).toBe(eventSource);
-          done();
-        } catch (err) {
-          done.fail(err);
-        }
-
+        expect(type).toBe("test");
+        expect(event.data).toBe(JSON.stringify("data"));
+        expect(event.lastEventId).toBe("id");
+        expect(clientEs).toBe(eventSource);
+        done();
         return null;
       };
 
@@ -361,12 +356,8 @@ describe("[ES SPOOFING]", () => {
       ESHook.eventHook = null;
 
       clientEs.addEventListener(type, () => {
-        try {
-          expect(func).not.toHaveBeenCalled();
-          done();
-        } catch (err) {
-          done.fail(err);
-        }
+        expect(func).not.toHaveBeenCalled();
+        done();
       });
 
       sse.sendEvent(type);
@@ -397,15 +388,11 @@ describe("[ES SPOOFING]", () => {
   describe("# `ESHook.simulate` method ->", () => {
     it("receives the simulated event with default options", (done) => {
       clientEs.onmessage = (event) => {
-        try {
-          expect(event.type).toBe("message");
-          expect(event.data).toBeNull();
-          expect(event.origin).toBe(new URL(clientEs.url).origin);
-          expect(event.lastEventId).toBe("");
-          done();
-        } catch (err) {
-          done.fail(err);
-        }
+        expect(event.type).toBe("message");
+        expect(event.data).toBeNull();
+        expect(event.origin).toBe(new URL(clientEs.url).origin);
+        expect(event.lastEventId).toBe("");
+        done();
       };
 
       ESHook.simulate(clientEs, "message");
@@ -413,15 +400,11 @@ describe("[ES SPOOFING]", () => {
 
     it("receives the simulated event with proper options", (done) => {
       clientEs.addEventListener("test", (event) => {
-        try {
-          expect(event.type).toBe("test");
-          expect(event.data).toBe(JSON.stringify("test"));
-          expect(event.origin).toBe("http://test");
-          expect(event.lastEventId).toBe("1");
-          done();
-        } catch (err) {
-          done.fail(err);
-        }
+        expect(event.type).toBe("test");
+        expect(event.data).toBe(JSON.stringify("test"));
+        expect(event.origin).toBe("http://test");
+        expect(event.lastEventId).toBe("1");
+        done();
       });
 
       ESHook.simulate(clientEs, "test", { lastEventId: "1", data: "test", origin: "http://test" });
@@ -429,13 +412,9 @@ describe("[ES SPOOFING]", () => {
 
     it("sets right properties to the event object", (done) => {
       clientEs.onmessage = (event: ExtendedMessageEvent) => {
-        try {
-          expect(event.simulated).toBe(true);
-          expect(event.isTrusted).toBe(true);
-          done();
-        } catch (err) {
-          done.fail(err);
-        }
+        expect(event.simulated).toBe(true);
+        expect(event.isTrusted).toBe(true);
+        done();
       };
 
       ESHook.simulate(clientEs, "message");
@@ -443,12 +422,8 @@ describe("[ES SPOOFING]", () => {
 
     it("serializes event data to JSON", (done) => {
       clientEs.onmessage = (event) => {
-        try {
-          expect(event.data).toBe(JSON.stringify(["array"]));
-          done();
-        } catch (err) {
-          done.fail(err);
-        }
+        expect(event.data).toBe(JSON.stringify(["array"]));
+        done();
       };
 
       ESHook.simulate(clientEs, "message", { data: ["array"] });
