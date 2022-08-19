@@ -102,8 +102,10 @@ function ToMutableMessageEvent(messageEvent) {
 
 
 function HookedEventSource(url, eventSourceInitDict) {
-  var _a;
+  var _a, _b; // Call the URL hook function to eventually get a new URL.
 
+
+  url = ((_a = ESHook.urlHook) === null || _a === void 0 ? void 0 : _a.call(ESHook, String(url))) || url;
   var es = new NativeEventSource(url, eventSourceInitDict);
   es._mapListenerProxy = new WeakMap();
   es._nativeAddEventListener = es.addEventListener;
@@ -112,12 +114,11 @@ function HookedEventSource(url, eventSourceInitDict) {
 
   es._createEventProxy = function (listener) {
     return function (event) {
-      // If no hook function, directly call listener.
-      if (!ESHook.eventHook) {
-        return listener(event);
-      }
+      var mutableEvent = ToMutableMessageEvent(event); // Set `isTrusted` to `true` like an genuine event.
 
-      var mutableEvent = ToMutableMessageEvent(event);
+      if (mutableEvent.simulated) mutableEvent.isTrusted = true; // If no hook function, directly call listener.
+
+      if (!ESHook.eventHook) return listener(mutableEvent);
 
       var callback = function callback(mutableEvent) {
         if (mutableEvent === null) return; // If the event is null, then block the event.
@@ -206,7 +207,7 @@ function HookedEventSource(url, eventSourceInitDict) {
   /* -------------------------------------------------------------------------- */
   // Call the create hook function before returning the instance.
 
-  (_a = ESHook.createHook) === null || _a === void 0 ? void 0 : _a.call(ESHook, es);
+  (_b = ESHook.createHook) === null || _b === void 0 ? void 0 : _b.call(ESHook, es);
   return es;
 }
 /** Library `event-source-hook` static class that provides `EventSource` hooking utilities. */
@@ -217,15 +218,28 @@ var ESHook =
 function () {
   function ESHook() {}
 
-  Object.defineProperty(ESHook, "createHook", {
+  Object.defineProperty(ESHook, "urlHook", {
     /* ------------------------------- Properties ------------------------------- */
 
-    /** Hook function invoked when a new `EventSource` is instanced. */
+    /** Hook function invoked just before a connection is established. */
+    get: function get() {
+      return this._urlHook;
+    },
+
+    /** Hook function invoked just before a connection is established. */
+    set: function set(func) {
+      this._urlHook = typeof func === "function" ? func : null;
+    },
+    enumerable: false,
+    configurable: true
+  });
+  Object.defineProperty(ESHook, "createHook", {
+    /** Hook function invoked just before a connection is established. */
     get: function get() {
       return this._createHook;
     },
 
-    /** Hook function invoked when a new `EventSource` is instanced. */
+    /** Hook function invoked just before a connection is established. */
     set: function set(func) {
       this._createHook = typeof func === "function" ? func : null;
     },
@@ -284,8 +298,18 @@ function () {
     EventSource = NativeEventSource;
   };
   /**
-   * Simulate a received event. It will be handled as if it was an authentic event received from the server.
-   * @note The `simulated` property is set to `true` on the `MessageEvent` object.
+   * Reset all hooks function to none.
+   */
+
+
+  ESHook.resetHooks = function () {
+    this._urlHook = null;
+    this._createHook = null;
+    this._eventHook = null;
+  };
+  /**
+   * Simulate a received event. It will be handled as if it was an genuine event received from the server.
+   * @note `simulated` and `isTrusted` properties are set to `true` on the `MessageEvent` object.
    * @param eventSource - Connection where the event should be received.
    * @param type - Event type. Use `message` if you want a non-typed event (default type).
    * @param options - Options to be passed to the event (such as data).
@@ -306,6 +330,9 @@ function () {
     eventSource.dispatchEvent(event);
   };
 
+  ESHook._urlHook = null;
+  ESHook._createHook = null;
+  ESHook._eventHook = null;
   return ESHook;
 }();
 
