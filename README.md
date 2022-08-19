@@ -30,8 +30,7 @@ A library to easily intercept, modify, and simulate [EventSource](https://develo
 ## Features
 
 - [x] Intercept new connections
-  - [ ] Modify connections (url, etc.)
-  - [ ] Block connections
+  - [x] Change connection URL
 - [x] Intercept incoming events
   - [x] Modify events (data, origin, id, etc.)
   - [x] Block events
@@ -89,7 +88,7 @@ ESHook.enable();
   </p>
 </details>
 
-### 2. Hook new connections
+### 2. Intercept new connections
 
 Attach a hook function to listen each new opening connection. You can save `EventSource` instances for later use if you wish.
 
@@ -109,9 +108,30 @@ ESHook.createHook = (eventSource) => {
   </p>
 </details>
 
-### 3. Simulate an event
+### 3. Change a connection URL
 
-You can simulate an incoming `MessageEvent`. It will be handled as if it were an authentic event received from the server.  
+Attach a hook function to change a connection URL just before a new connection is established.
+
+<details>
+  <summary>View code</summary>
+  <p>
+
+```js
+ESHook.urlHook = (url) => {
+  if (url === "http://a-url") {
+    url = "http://new-url";
+  }
+
+  return url;
+};
+```
+
+  </p>
+</details>
+
+### 4. Simulate an event
+
+You can simulate an incoming `MessageEvent`. It will be handled as if it were an genuine event received from the server.  
 It is required to specify on which connection you want to simulate the event.
 
 <details>
@@ -138,7 +158,7 @@ _Note: the `simulated` property is set to `true` on the `MessageEvent` object. T
   </p>
 </details>
 
-### 4. Intercept, then modify or block an event
+### 5. Intercept, then modify or block an event
 
 Attach a hook function to listen for incoming `MessageEvent` just before the native `EventSource` receives them.  
 _Note: the hook function can be synchronous or asynchronous (see, below examples)._
@@ -186,7 +206,7 @@ EventSourceHook.eventHook = (type, event, eventSource) => {
 
 To make the hook function asynchronous, include the optional `result` callback parameter, and call it to return the (modified) event or `null` to block the event.
 
-**Example with promise**:
+**Example with a promise**:
 
 ```js
 EventSourceHook.eventHook = (type, event, eventSource, result) => {
@@ -196,7 +216,7 @@ EventSourceHook.eventHook = (type, event, eventSource, result) => {
     return;
   }
 
-  // Modify incoming events data from URL `https://test`.
+  // Modify incoming events data from URL `http://test`.
   if (eventSource.url === "https://test") {
     fetchData().then((data) => {
       event.data = JSON.stringify(data);
@@ -215,24 +235,33 @@ EventSourceHook.eventHook = (type, event, eventSource, result) => {
 
 ```js
 EventSourceHook.eventHook = async (type, event, eventSource, result) => {
-  // Block incoming events with type `message`.
-  if (type === "message") {
-    result(null);
-    return;
-  }
+  const thing = await something();
 
-  // Modify incoming events data from URL `https://test`.
-  if (eventSource.url === "https://test") {
-    const data = await fetchData();
-    event.data = JSON.stringify(data);
-
+  if (thing) {
+    event.data = thing;
     result(event);
-    return;
+  } else {
+    result(null);
   }
-
-  // Leave the other events as they are.
-  result(event);
 };
+```
+
+  </p>
+</details>
+
+### Reset hooks
+
+You can disable hooks by setting `null`.
+
+<details>
+  <summary>View code</summary>
+  <p>
+
+```js
+ESHook.urlHook = null;
+ESHook.createHook = null;
+ESHook.eventHook = null;
+...
 ```
 
   </p>
@@ -244,6 +273,6 @@ EventSourceHook.eventHook = async (type, event, eventSource, result) => {
 
 ## Documentation
 
-View [API docs](https://github.com/Akwd22/event-source-hook/wiki/API-Documentation).
+View [API docs](<https://github.com/Akwd22/event-source-hook/wiki/API-Documentation-(v2.1.0)>).
 
 <p align="right">(<a href="#top">back to top</a>)</p>

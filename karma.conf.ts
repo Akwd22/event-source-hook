@@ -80,6 +80,7 @@ export default (config: karma.Config) => {
     client: {
       jasmine: {
         random: false,
+        stopOnSpecFailure: true,
       },
     },
   });

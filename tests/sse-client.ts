@@ -1,14 +1,21 @@
+import ESHook, { HookedEventSource } from "../src/index";
+
 /** Client connection to the event stream. */
-let stream: EventSource | null;
+let stream: HookedEventSource | null;
 /** Client ID. */
 let clientId: number;
 
 /**
  * Connect to the event stream.
  * @returns A promise that resolves to a `EventSource` instance once connected.
+ * @throws {Error} If `ESHook` library is not enabled.
  */
-export function open(): Promise<EventSource> {
-  stream = new EventSource("/es");
+export function open(): Promise<HookedEventSource> {
+  if (!ESHook.enabled) {
+    throw new Error("`ESHook` must be enabled. Please call `ESHook.enable` method.");
+  }
+
+  stream = new EventSource("/es") as HookedEventSource;
 
   return new Promise((resolve, reject) => {
     if (!stream) {
@@ -16,12 +23,12 @@ export function open(): Promise<EventSource> {
       return;
     }
 
-    stream.addEventListener("client-id", (event) => {
+    stream._nativeAddEventListener("client-id", (event) => {
       clientId = event.data;
       resolve(stream!);
     });
 
-    stream.addEventListener("error", (error) => {
+    stream._nativeAddEventListener("error", (error) => {
       reject(error);
     });
   });

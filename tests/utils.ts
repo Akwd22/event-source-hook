@@ -18,7 +18,7 @@ function promisifyCallback(callback?: Function, timeout?: number): [Promise<void
 
   const resolver = (...args: any[]) => {
     clearTimeout(timer);
-    callback?.(args);
+    callback?.(...args);
     promiseResolve();
   };
 

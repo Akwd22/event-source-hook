@@ -1,85 +1,110 @@
 import sse from "./sse-client";
 import utils from "./utils";
 
-import ESHook from "../src/index";
-import { ExtendedMessageEvent, HookedEventSource, HookEventFunctionAsync, HookEventFunctionSync } from "../src/interfaces";
+import ESHook, { ExtendedMessageEvent, HookedEventSource, HookEventFunctionAsync, HookEventFunctionSync } from "../src/index";
 
 /* -------------------------------------------------------------------------- */
-/*                                   Globals                                  */
+/*                           Library Core - Testing                           */
 /* -------------------------------------------------------------------------- */
 
-/** Client connection used for testing purposes. */
-let clientEs: EventSource;
-/** Intercepted client connection (should be same as `clientEs`). */
-let hookedEs: HookedEventSource;
+/**
+ * This suite tests all core library components such as initialization, enabling,
+ * disabling functions which are essentials to the rest of functionalities.
+ *
+ * ⚠️ If any of these components don't work, "Event Stream Spoofing" tests won't pass.
+ */
 
-/* -------------------------------------------------------------------------- */
-/*                              Setup & Teardown                              */
-/* -------------------------------------------------------------------------- */
-
-beforeEach(async () => {
-  ESHook.enable();
-  ESHook.createHook = (es) => {
-    ESHook.createHook = null;
-    hookedEs = es;
-  };
-
-  clientEs = await sse.open();
-});
-
-afterEach(() => {
-  sse.close();
-  ESHook.resetHooks();
-});
-
-/* -------------------------------------------------------------------------- */
-/*                                 Unit Tests                                 */
-/* -------------------------------------------------------------------------- */
-
-/* -------------------------------- URL Hook -------------------------------- */
-
-describe("# URL Hook", () => {
-  let testEs: EventSource | null;
-
-  it("calls the hook function with proper args", (done) => {
-    ESHook.urlHook = (url) => {
-      expect(url).toBe("the-url");
-      done();
-      return url;
-    };
-
-    testEs = new EventSource("the-url");
+describe("[LIBRARY CORE]", () => {
+  it("should define library class on import", () => {
+    expect(ESHook).toBeDefined();
   });
 
-  it("changes server URL and it successfully connects to it", (done) => {
-    const newUrl = clientEs.url;
-    ESHook.urlHook = () => newUrl;
-
-    testEs = new EventSource("/change-me");
-    expect(testEs.url).toBe(newUrl);
-
-    // On connect, the testing server automatically send this event.
-    testEs.addEventListener("client-id", () => done());
+  describe("# `ESHook.enable` method ->", () => {
+    it("swaps native `EventSource` constructor", () => {
+      expect(EventSource.name).toBe("EventSource");
+      ESHook.enable();
+      expect(EventSource.name).toBe("HookedEventSource");
+    });
   });
 
-  afterEach(() => {
-    testEs?.close();
-    testEs = null;
+  describe("# `ESHook.disable` method ->", () => {
+    it("swaps back native `EventSource` constructor", () => {
+      ESHook.enable();
+      ESHook.disable();
+      expect(EventSource.name).toBe("EventSource");
+    });
   });
-});
 
-/* ------------------------------- Create Hook ------------------------------ */
+  describe("# `ESHook.resetHooks` method ->", () => {
+    it("set hooks function to `null`", () => {
+      ESHook.urlHook = () => "";
+      ESHook.createHook = () => {};
+      ESHook.eventHook = () => {};
 
-describe("# Create Hook", () => {
-  it("intercepts any opened connection", () => {
-    expect(hookedEs).toBe(clientEs as HookedEventSource);
+      ESHook.resetHooks();
+
+      expect(ESHook.urlHook).toBeNull();
+      expect(ESHook.createHook).toBeNull();
+      expect(ESHook.eventHook).toBeNull();
+    });
+  });
+
+  describe("# `ESHook.enabled` property ->", () => {
+    it("returns `false` if `EventSource` constructor is the native one", () => {
+      // Test by calling disable function.
+      ESHook.disable();
+      const genuine = EventSource;
+      expect(ESHook.enabled).toBe(false);
+
+      // Test without calling disable function.
+      EventSource = genuine;
+      expect(ESHook.enabled).toBe(false);
+    });
+
+    it("returns `true` if `EventSource` constructor is the spoofed one", () => {
+      // Test by calling enable function.
+      ESHook.enable();
+      const fake = EventSource;
+      expect(ESHook.enabled).toBe(true);
+
+      // Test without calling enable function.
+      EventSource = fake;
+      expect(ESHook.enabled).toBe(true);
+    });
   });
 });
 
-/* ------------------------------- Event Hook ------------------------------- */
+/* -------------------------------------------------------------------------- */
+/*                       Event Stream Spoofing - Testing                      */
+/* -------------------------------------------------------------------------- */
 
-describe("# Event Hook", () => {
-  describe("## `EventSource.addEventListener()` impl.", () => {
+/**
+ * This suite tests event stream spoofing which include: hooks, event simulation.
+ *
+ * ⚠️ These tests depend on "Library Core" components so these latter must work.
+ */
+
+describe("[ES SPOOFING]", () => {
+  /** Client connection used for testing purposes. */
+  let clientEs: EventSource;
+
+  /* ---------------------------- Setup & Teardown ---------------------------- */
+
+  beforeEach(async () => {
+    ESHook.enable();
+    clientEs = await sse.open();
+  });
+
+  afterEach(async () => {
+    ESHook.resetHooks();
+    sse.close();
+  });
+
+  /* ----------------------- EventSource Implementations ---------------------- */
+
+  // ⚠️ These tests must pass since all next tests use these methods.
+
+  describe("# `EventSource.addEventListener` spoofed method ->", () => {
     it("takes a listener function successfully", (done) => {
       const type = utils.uniqueString();
       clientEs.addEventListener(type, () => done());
@@ -109,7 +134,7 @@ describe("# Event Hook", () => {
     });
   });
 
-  describe("## `EventSource.removeEventListener()` impl.", () => {
+  describe("# `EventSource.removeEventListener` spoofed method ->", () => {
     it("removes passed listener when called", async () => {
       // Should removes listener from event types `open` and `error`.
       const funcOpen = jasmine.createSpy();
@@ -150,7 +175,110 @@ describe("# Event Hook", () => {
     });
   });
 
-  describe("## Hook behaviour", () => {
+  /* -------------------------------- URL Hook -------------------------------- */
+
+  describe("# URL Hook ->", () => {
+    let testEs: EventSource | null;
+
+    it("`ESHook.urlHook` property", () => {
+      const func = () => "";
+
+      expect(ESHook.urlHook).toBeNull();
+
+      ESHook.urlHook = func;
+      expect(ESHook.urlHook).toBe(func);
+
+      ESHook.urlHook = null;
+      expect(ESHook.urlHook).toBeNull();
+    });
+
+    it("calls the hook function with proper args", (done) => {
+      ESHook.urlHook = (url) => {
+        expect(url).toBe("the-url");
+        done();
+        return url;
+      };
+
+      testEs = new EventSource("the-url");
+    });
+
+    it("changes server URL and it successfully connects to it", (done) => {
+      const newUrl = clientEs.url;
+      ESHook.urlHook = () => newUrl;
+
+      testEs = new EventSource("/change-me");
+      expect(testEs.url).toBe(newUrl);
+
+      // On connect, the testing server automatically send this event.
+      testEs.addEventListener("client-id", () => done());
+    });
+
+    afterEach(() => {
+      testEs?.close();
+      testEs = null;
+    });
+  });
+
+  /* ------------------------------- Create Hook ------------------------------ */
+
+  describe("# Create Hook ->", () => {
+    it("`ESHook.createHook` property", () => {
+      const func = () => {};
+
+      expect(ESHook.createHook).toBeNull();
+
+      ESHook.createHook = func;
+      expect(ESHook.createHook).toBe(func);
+
+      ESHook.createHook = null;
+      expect(ESHook.createHook).toBeNull();
+    });
+
+    it("intercepts any opened connection", async () => {
+      let testEs: EventSource;
+      let hookedEs: HookedEventSource;
+
+      const [toBeIntercepted, callMe] = utils.promisifyCallback((es: HookedEventSource) => (hookedEs = es));
+
+      ESHook.createHook = callMe;
+      testEs = new EventSource("/es");
+
+      await toBeIntercepted;
+      expect(testEs).toEqual(hookedEs!);
+
+      testEs.close();
+    });
+  });
+
+  /* ------------------------------- Event Hook ------------------------------- */
+
+  describe("# Event Hook ->", () => {
+    it("`ESHook.eventHook` property", () => {
+      const func = () => {};
+
+      expect(ESHook.eventHook).toBeNull();
+
+      ESHook.eventHook = func;
+      expect(ESHook.eventHook).toBe(func);
+
+      ESHook.eventHook = null;
+      expect(ESHook.eventHook).toBeNull();
+    });
+
+    it("`ESHook.isEventHookAsync` property", () => {
+      const funcSync: HookEventFunctionSync = ({}, {}, {}) => null;
+      const funcAsync: HookEventFunctionAsync = ({}, {}, {}, result) => {};
+
+      ESHook.eventHook = null;
+      expect(ESHook.isEventHookAsync).toBe(false);
+
+      ESHook.eventHook = funcSync;
+      expect(ESHook.isEventHookAsync).toBe(false);
+
+      ESHook.eventHook = funcAsync;
+      expect(ESHook.isEventHookAsync).toBe(true);
+    });
+
     it("intercepts any event type - with `EventSource.addEventListener()`", async () => {
       // Should not intercept event types `open` and `error`.
       const funcOpen = jasmine.createSpy();
@@ -212,7 +340,7 @@ describe("# Event Hook", () => {
           expect(type).toBe("test");
           expect(event.data).toBe(JSON.stringify("data"));
           expect(event.lastEventId).toBe("id");
-          expect(eventSource).toBe(hookedEs);
+          expect(clientEs).toBe(eventSource);
           done();
         } catch (err) {
           done.fail(err);
@@ -263,40 +391,10 @@ describe("# Event Hook", () => {
       expect(func).not.toHaveBeenCalled();
     });
   });
-});
 
-/* --------------------------------- Methods -------------------------------- */
+  /* ----------------------------- Simulate Event ----------------------------- */
 
-describe("# `ESHook` Class Methods", () => {
-  describe("## `enable()`", () => {
-    it("swaps native `EventSource` constructor", () => {
-      ESHook.enable();
-      expect(EventSource.name).toBe("HookedEventSource");
-    });
-  });
-
-  describe("## `disable()`", () => {
-    it("swaps back native `EventSource` constructor", () => {
-      ESHook.disable();
-      expect(EventSource.name).toBe("EventSource");
-    });
-  });
-
-  describe("## `resetHooks()`", () => {
-    it("set hooks function to `null`", () => {
-      ESHook.urlHook = () => "";
-      ESHook.createHook = () => {};
-      ESHook.eventHook = () => {};
-
-      ESHook.resetHooks();
-
-      expect(ESHook.urlHook).toBeNull();
-      expect(ESHook.createHook).toBeNull();
-      expect(ESHook.eventHook).toBeNull();
-    });
-  });
-
-  describe("## `simulate()`", () => {
+  describe("# `ESHook.simulate` method ->", () => {
     it("receives the simulated event with default options", (done) => {
       clientEs.onmessage = (event) => {
         try {
@@ -310,7 +408,7 @@ describe("# `ESHook` Class Methods", () => {
         }
       };
 
-      ESHook.simulate(hookedEs, "message");
+      ESHook.simulate(clientEs, "message");
     });
 
     it("receives the simulated event with proper options", (done) => {
@@ -326,7 +424,7 @@ describe("# `ESHook` Class Methods", () => {
         }
       });
 
-      ESHook.simulate(hookedEs, "test", { lastEventId: "1", data: "test", origin: "http://test" });
+      ESHook.simulate(clientEs, "test", { lastEventId: "1", data: "test", origin: "http://test" });
     });
 
     it("sets right properties to the event object", (done) => {
@@ -340,7 +438,7 @@ describe("# `ESHook` Class Methods", () => {
         }
       };
 
-      ESHook.simulate(hookedEs, "message");
+      ESHook.simulate(clientEs, "message");
     });
 
     it("serializes event data to JSON", (done) => {
@@ -353,67 +451,7 @@ describe("# `ESHook` Class Methods", () => {
         }
       };
 
-      ESHook.simulate(hookedEs, "message", { data: ["array"] });
+      ESHook.simulate(clientEs, "message", { data: ["array"] });
     });
-  });
-});
-
-/* ------------------------------- Properties ------------------------------- */
-
-describe("# `ESHook` Class Properties", () => {
-  it("`createHook`", () => {
-    const func = () => {};
-
-    expect(ESHook.createHook).toBeNull();
-
-    ESHook.createHook = func;
-    expect(ESHook.createHook).toBe(func);
-
-    ESHook.createHook = null;
-    expect(ESHook.createHook).toBeNull();
-  });
-
-  it("`eventHook`", () => {
-    const func = () => {};
-
-    expect(ESHook.eventHook).toBeNull();
-
-    ESHook.eventHook = func;
-    expect(ESHook.eventHook).toBe(func);
-
-    ESHook.eventHook = null;
-    expect(ESHook.eventHook).toBeNull();
-  });
-
-  it("`isEventHookAsync`", () => {
-    const funcSync: HookEventFunctionSync = ({}, {}, {}) => null;
-    const funcAsync: HookEventFunctionAsync = ({}, {}, {}, result) => {};
-
-    ESHook.eventHook = null;
-    expect(ESHook.isEventHookAsync).toBe(false);
-
-    ESHook.eventHook = funcSync;
-    expect(ESHook.isEventHookAsync).toBe(false);
-
-    ESHook.eventHook = funcAsync;
-    expect(ESHook.isEventHookAsync).toBe(true);
-  });
-
-  it("`enabled`", () => {
-    // Test by calling enable/disable functions.
-    ESHook.enable();
-    const fake = EventSource;
-    expect(ESHook.enabled).toBe(true);
-
-    ESHook.disable();
-    const genuine = EventSource;
-    expect(ESHook.enabled).toBe(false);
-
-    // Test without calling enable/disable functions.
-    EventSource = fake;
-    expect(ESHook.enabled).toBe(true);
-
-    EventSource = genuine;
-    expect(ESHook.enabled).toBe(false);
   });
 });

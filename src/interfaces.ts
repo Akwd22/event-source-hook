@@ -8,8 +8,8 @@ export interface HookedEventSource extends EventSource {
    */
   _createEventProxy: (listener: EventListener) => EventListener;
 
-  _nativeAddEventListener: EventTarget["addEventListener"];
-  _nativeRemoveEventListener: EventTarget["removeEventListener"];
+  _nativeAddEventListener: EventSource["addEventListener"];
+  _nativeRemoveEventListener: EventSource["removeEventListener"];
 }
 
 /* ------------------------------ Message Event ----------------------------- */
