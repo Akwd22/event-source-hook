@@ -66,7 +66,7 @@ export default (config: karma.Config) => {
     // start these browsers
     // available browser launchers: https://www.npmjs.com/search?q=keywords:karma-launcher
     browsers: setupBrowsers(),
-    // browsers: ["ChromeHeadless", "FirefoxHeadless"],
+    // browsers: ["ChromeHeadless"],
 
     // continuous Integration mode
     // if true, Karma captures browsers, runs the tests and exits

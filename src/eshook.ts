@@ -1,4 +1,13 @@
-import { ExtendedMessageEvent, HookedEventSource, HookEventFunction, HookEventFunctionAsync, HookEventFunctionSync, HookCreateFunction, MutableMessageEvent } from "./interfaces";
+import {
+  ExtendedMessageEvent,
+  HookCreateFunction,
+  HookedEventSource,
+  HookEventFunction,
+  HookEventFunctionAsync,
+  HookEventFunctionSync,
+  HookUrlFunction,
+  MutableMessageEvent,
+} from "./interfaces";
 
 const NativeEventSource = EventSource;
 
@@ -39,6 +48,9 @@ function ToMutableMessageEvent(messageEvent: ExtendedMessageEvent): MutableMessa
  * @constructor
  */
 function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceInit): HookedEventSource {
+  // Call the URL hook function to eventually get a new URL.
+  url = ESHook.urlHook?.(String(url)) || url;
+
   const es = new NativeEventSource(url, eventSourceInitDict) as HookedEventSource;
 
   es._mapListenerProxy = new WeakMap();
@@ -146,17 +158,28 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
 /** Library `event-source-hook` static class that provides `EventSource` hooking utilities. */
 class ESHook {
+  private static _urlHook: HookUrlFunction | null = null;
   private static _createHook: HookCreateFunction | null = null;
   private static _eventHook: HookEventFunction | null = null;
 
   /* ------------------------------- Properties ------------------------------- */
 
-  /** Hook function invoked when a new `EventSource` is instanced. */
+  /** Hook function invoked just before a connection is established. */
+  static get urlHook() {
+    return this._urlHook;
+  }
+
+  /** Hook function invoked just before a connection is established. */
+  static set urlHook(func) {
+    this._urlHook = typeof func === "function" ? func : null;
+  }
+
+  /** Hook function invoked just before a connection is established. */
   static get createHook() {
     return this._createHook;
   }
 
-  /** Hook function invoked when a new `EventSource` is instanced. */
+  /** Hook function invoked just before a connection is established. */
   static set createHook(func) {
     this._createHook = typeof func === "function" ? func : null;
   }

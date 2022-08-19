@@ -29,6 +29,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   sse.close();
+  ESHook.urlHook = null;
   ESHook.createHook = null;
   ESHook.eventHook = null;
 });
@@ -36,6 +37,38 @@ afterEach(() => {
 /* -------------------------------------------------------------------------- */
 /*                                 Unit Tests                                 */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------- URL Hook -------------------------------- */
+
+describe("# URL Hook", () => {
+  let testEs: EventSource | null;
+
+  it("calls the hook function with proper args", (done) => {
+    ESHook.urlHook = (url) => {
+      expect(url).toBe("the-url");
+      done();
+      return url;
+    };
+
+    testEs = new EventSource("the-url");
+  });
+
+  it("changes server URL and it successfully connects to it", (done) => {
+    const newUrl = clientEs.url;
+    ESHook.urlHook = () => newUrl;
+
+    testEs = new EventSource("/change-me");
+    expect(testEs.url).toBe(newUrl);
+
+    // On connect, the testing server automatically send this event.
+    testEs.addEventListener("client-id", () => done());
+  });
+
+  afterEach(() => {
+    testEs?.close();
+    testEs = null;
+  });
+});
 
 /* ------------------------------- Create Hook ------------------------------ */
 

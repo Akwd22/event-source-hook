@@ -39,6 +39,27 @@ export interface MutableMessageEvent extends ExtendedMessageEvent {
   type: MessageEvent["type"];
 }
 
+/* ---------------------------- URL Hook Function --------------------------- */
+
+export interface HookUrlFunction {
+  /**
+   * Hook function to change the connection server URL before connecting to it.
+   * @param url - Server URL to connect to.
+   * @returns The server URL to connect to.
+   */
+  (url: string): string;
+}
+
+/* -------------------------- Create Hook Function -------------------------- */
+
+export interface HookCreateFunction {
+  /**
+   * Hook function used to intercept new instanced `EventSource`.
+   * @param eventSource New connection.
+   */
+  (eventSource: HookedEventSource): void;
+}
+
 /* --------------------------- Event Hook Function -------------------------- */
 
 export interface HookEventFunctionSync {
@@ -75,14 +96,4 @@ export interface HookEventFunction {
    * @returns If `result` not included: a `MessageEvent` object, or `null` to block.
    */
   (type: string, event: MutableMessageEvent, eventSource: HookedEventSource, result: (event: MutableMessageEvent | null) => void): MutableMessageEvent | null | void;
-}
-
-/* -------------------------- Create Hook Function -------------------------- */
-
-export interface HookCreateFunction {
-  /**
-   * Hook function used to intercept new instanced `EventSource`.
-   * @param eventSource New connection.
-   */
-  (eventSource: HookedEventSource): void;
 }

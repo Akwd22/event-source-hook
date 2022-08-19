@@ -1,7 +1,7 @@
 {
   "name": "event-source-hook",
   "version": "2.0.0",
-  "description": "Easily intercept, modify, and simulate EventSource server-sent message events.",
+  "description": "Easily intercept, modify, and simulate EventSource server-sent events.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
