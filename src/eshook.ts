@@ -210,7 +210,7 @@ class ESHook {
    * Swap the native `EventSource` constructor with a spoofed one.
    * Any opened connections will be spoofed by the library while enabled.
    */
-  static enable() {
+  static enable(): void {
     // @ts-ignore
     EventSource = HookedEventSource;
   }
@@ -220,9 +220,18 @@ class ESHook {
    * Any opened connections while disabled will not be spoofed by the library even after re-enabling.
    * @note Hook event function will still be called while disabled.
    */
-  static disable() {
+  static disable(): void {
     // @ts-ignore
     EventSource = NativeEventSource;
+  }
+
+  /**
+   * Reset all hooks function to none.
+   */
+  static resetHooks(): void {
+    this._urlHook = null;
+    this._createHook = null;
+    this._eventHook = null;
   }
 
   /**

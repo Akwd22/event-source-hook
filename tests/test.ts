@@ -29,9 +29,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   sse.close();
-  ESHook.urlHook = null;
-  ESHook.createHook = null;
-  ESHook.eventHook = null;
+  ESHook.resetHooks();
 });
 
 /* -------------------------------------------------------------------------- */
@@ -281,6 +279,20 @@ describe("# `ESHook` Class Methods", () => {
     it("swaps back native `EventSource` constructor", () => {
       ESHook.disable();
       expect(EventSource.name).toBe("EventSource");
+    });
+  });
+
+  describe("## `resetHooks()`", () => {
+    it("set hooks function to `null`", () => {
+      ESHook.urlHook = () => "";
+      ESHook.createHook = () => {};
+      ESHook.eventHook = () => {};
+
+      ESHook.resetHooks();
+
+      expect(ESHook.urlHook).toBeNull();
+      expect(ESHook.createHook).toBeNull();
+      expect(ESHook.eventHook).toBeNull();
     });
   });
 
