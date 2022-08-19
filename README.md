@@ -276,3 +276,4 @@ ESHook.eventHook = null;
 View [API docs](<https://github.com/Akwd22/event-source-hook/wiki/API-Documentation-(v2.1.0)>).
 
 <p align="right">(<a href="#top">back to top</a>)</p>
+
