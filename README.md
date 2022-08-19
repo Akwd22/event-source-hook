@@ -50,7 +50,7 @@ npm install --save event-source-hook
 
 **Install in a browser**:
 
-- download file `browser/eshook.js` or `browser/eshook.min.js`
+- download file [`browser/eshook.js`](https://github.com/Akwd22/event-source-hook/tree/main/browser) or [`browser/eshook.min.js`](https://github.com/Akwd22/event-source-hook/tree/main/browser)
 - import it on your web page
 
 _Note: these scripts are polyfilled, so it should run on every browser supporting `EventSource` API._
@@ -276,4 +276,3 @@ ESHook.eventHook = null;
 View [API docs](<https://github.com/Akwd22/event-source-hook/wiki/API-Documentation-(v2.1.0)>).
 
 <p align="right">(<a href="#top">back to top</a>)</p>
-
