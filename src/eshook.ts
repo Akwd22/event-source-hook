@@ -61,12 +61,13 @@ function HookedEventSource(url: string | URL, eventSourceInitDict?: EventSourceI
 
   es._createEventProxy = function (listener) {
     return function (event: Event) {
-      // If no hook function, directly call listener.
-      if (!ESHook.eventHook) {
-        return listener(event);
-      }
-
       const mutableEvent = ToMutableMessageEvent(event as ExtendedMessageEvent);
+
+      // Set `isTrusted` to `true` like an genuine event.
+      if (mutableEvent.simulated) mutableEvent.isTrusted = true;
+
+      // If no hook function, directly call listener.
+      if (!ESHook.eventHook) return listener(mutableEvent);
 
       const callback = (mutableEvent: MutableMessageEvent | null) => {
         if (mutableEvent === null) return; // If the event is null, then block the event.
@@ -235,8 +236,8 @@ class ESHook {
   }
 
   /**
-   * Simulate a received event. It will be handled as if it was an authentic event received from the server.
-   * @note The `simulated` property is set to `true` on the `MessageEvent` object.
+   * Simulate a received event. It will be handled as if it was an genuine event received from the server.
+   * @note `simulated` and `isTrusted` properties are set to `true` on the `MessageEvent` object.
    * @param eventSource - Connection where the event should be received.
    * @param type - Event type. Use `message` if you want a non-typed event (default type).
    * @param options - Options to be passed to the event (such as data).

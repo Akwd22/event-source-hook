@@ -329,10 +329,11 @@ describe("# `ESHook` Class Methods", () => {
       ESHook.simulate(hookedEs, "test", { lastEventId: "1", data: "test", origin: "http://test" });
     });
 
-    it("adds a property `simulated` to `true` to event object", (done) => {
+    it("sets right properties to the event object", (done) => {
       clientEs.onmessage = (event: ExtendedMessageEvent) => {
         try {
           expect(event.simulated).toBe(true);
+          expect(event.isTrusted).toBe(true);
           done();
         } catch (err) {
           done.fail(err);
