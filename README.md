@@ -7,7 +7,7 @@
   
 A library to easily intercept, modify, and simulate [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) server-sent events.
 
-![build pass](https://img.shields.io/github/workflow/status/Akwd22/event-source-hook/Node.js%20CI)
+![build pass](https://img.shields.io/github/actions/workflow/status/Akwd22/event-source-hook/node.js-ci.yml?branch=main)
 ![latest release](https://img.shields.io/npm/v/event-source-hook?label=release)
 ![types included](https://img.shields.io/npm/types/event-source-hook)
 ![total downloads](https://img.shields.io/npm/dt/event-source-hook)
